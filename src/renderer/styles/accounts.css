@@ -1,0 +1,16 @@
+/* ---- Cuentas: qué correo usa cada canal */
+.abook { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
+.abook-card { padding: 14px 16px; border-radius: var(--r-md); background: var(--bg-2); border: 1px solid var(--border); }
+.abook-card header { display: flex; align-items: center; gap: 8px; color: var(--accent); margin-bottom: 10px; }
+.abook-card h2 { font-size: var(--fs-md); font-weight: 600; color: var(--text-1); overflow-wrap: anywhere; }
+.abook-card header .sp { flex: 1; }
+.abook-card ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 7px; }
+.abook-card li { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.abook-ch { font-weight: 600; }
+.abook-pf { display: inline-block; min-width: 74px; text-align: center; padding: 1px 8px; border-radius: 999px; font-size: var(--fs-xs); font-weight: 600; background: var(--bg-3); color: var(--text-2); }
+.abook-pf.youtube { background: rgba(196, 48, 43, .2); color: #ff8a84; }
+.abook-pf.tiktok { background: rgba(31, 143, 138, .2); color: #6fe0d9; }
+.abook-pf.instagram { background: rgba(181, 54, 122, .2); color: #ff8fcb; }
+.abook-sec { margin: 24px 0 10px; font-size: var(--fs-lg); font-weight: 600; }
+.abook-t { border-collapse: collapse; font-size: var(--fs-sm); }
+.abook-t td { padding: 6px 14px 6px 0; border-bottom: 1px solid var(--border); }

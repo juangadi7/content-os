@@ -1,0 +1,77 @@
+/* Armazón de la aplicación: barra lateral, zona de trabajo y cabecera de pantalla. */
+* { box-sizing: border-box; }
+html, body, #root { height: 100%; }
+body { margin: 0; background: var(--bg-1); overflow: hidden; }
+button, input, textarea, select { font: inherit; color: inherit; }
+h1, h2, h3, p { margin: 0; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+.app { display: grid; grid-template-columns: var(--side-w) minmax(0, 1fr); height: 100%; }
+
+/* ---- barra lateral */
+.side { background: var(--bg-0); border-right: 1px solid var(--border); display: flex; flex-direction: column; padding: var(--sp-4) var(--sp-2) var(--sp-3); min-height: 0; }
+.brand { display: flex; align-items: center; gap: 9px; padding: 2px 10px var(--sp-4); font-size: 13px; font-weight: 650; letter-spacing: 0.12em; }
+.brand .logo { width: 22px; height: 22px; border-radius: var(--r-sm); background: var(--accent); color: #0b0c0f; display: grid; place-items: center; }
+.nav { display: flex; flex-direction: column; gap: 1px; overflow-y: auto; }
+.nav-group { padding: 18px 10px 6px; font-size: 10.5px; font-weight: 600; letter-spacing: 0.09em; text-transform: uppercase; color: var(--text-3); }
+.nav > div:first-child .nav-group { padding-top: 0; }
+.nav button { display: flex; align-items: center; gap: 10px; width: 100%; height: 32px; padding: 0 10px; background: none; border: none; border-radius: var(--r-sm);
+  cursor: pointer; text-align: left; color: var(--text-2); font-size: 13.5px; transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease); }
+.nav button svg { flex: none; color: var(--text-3); transition: color var(--t-fast) var(--ease); }
+.nav button .lbl { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nav button:hover { background: var(--bg-2); color: var(--text-1); }
+.nav button.on { background: var(--bg-3); color: var(--text-1); font-weight: 550; }
+.nav button.on svg { color: var(--accent); }
+.nav .n { font-size: 11.5px; color: var(--text-3); font-variant-numeric: tabular-nums; }
+.nav .n.pill { padding: 1px 7px; border-radius: 999px; background: color-mix(in srgb, var(--c-goal) 18%, transparent); color: var(--c-goal); font-weight: 600; }
+.nav .n.ok { color: var(--c-money); }
+.side .grow { flex: 1; }
+
+/* estado de la biblioteca, compacto */
+.lib { margin: var(--sp-2) 2px 0; padding: var(--sp-3) 8px 0; border-top: 1px solid var(--border); font-size: var(--fs-sm); color: var(--text-2); }
+.lib .lib-row { display: flex; align-items: center; gap: 8px; min-height: 20px; }
+.lib .dot-state { width: 7px; height: 7px; border-radius: 50%; background: var(--c-closed); flex: none; }
+.lib .dot-state.ok { background: var(--c-money); } .lib .dot-state.warn { background: var(--c-goal); } .lib .dot-state.bad { background: var(--c-danger); }
+.lib .dot-state.run { background: var(--accent); animation: latido 1s ease-in-out infinite; }
+@keyframes latido { 50% { opacity: 0.35; } }
+.lib .sync-msg { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lib .sync-msg button { background: none; border: none; padding: 0; color: inherit; cursor: pointer; text-decoration: underline dotted; }
+.lib .lib-meta { color: var(--text-3); font-size: var(--fs-xs); margin: 2px 0 var(--sp-2) 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lib .path { color: var(--text-3); }
+.lib .btn.wide { width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; height: 30px; padding: 0; }
+
+/* ---- zona de trabajo */
+.main { overflow-y: auto; min-width: 0; }
+.page { max-width: var(--page-w); margin: 0 auto; padding: var(--sp-5) var(--sp-6) 64px; animation: entrar var(--t-med) var(--ease); }
+@keyframes entrar { from { opacity: 0; transform: translateY(4px); } }
+
+/* ---- cabecera de pantalla */
+.phead { display: flex; align-items: flex-end; gap: var(--sp-4); padding-bottom: var(--sp-4); margin-bottom: var(--sp-5); border-bottom: 1px solid var(--border); }
+.phead .ptitle { min-width: 0; }
+.phead .ptitle { flex: none; }
+.phead h1 { white-space: nowrap; font-size: var(--fs-xl); font-weight: 620; letter-spacing: -0.01em; line-height: 1.2; }
+.phead .pmeta { display: flex; align-items: center; gap: 8px; margin-top: 4px; color: var(--text-2); font-size: var(--fs-sm); min-height: 18px; }
+.phead .pmeta .sep { color: var(--border-strong); }
+.phead .sp { flex: 1; }
+.phead .pactions { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; justify-content: flex-end; }
+
+/* ---- controles base */
+.btn { display: inline-flex; align-items: center; gap: 7px; height: 32px; padding: 0 13px; border-radius: var(--r-sm); border: 1px solid var(--border-strong); background: var(--bg-3);
+  cursor: pointer; white-space: nowrap; font-size: 13.5px; transition: background var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease), opacity var(--t-fast) var(--ease); }
+.btn:hover:not(:disabled) { background: #262830; border-color: #454956; }
+.btn:active:not(:disabled) { transform: translateY(0.5px); }
+.btn:disabled { opacity: 0.45; cursor: default; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #0b0c0f; font-weight: 600; }
+.btn.primary:hover:not(:disabled) { background: #8298ff; border-color: #8298ff; }
+.btn.small { height: 26px; padding: 0 10px; font-size: var(--fs-sm); }
+.btn.wide { width: 100%; }
+.btn.ghost { background: none; border-color: var(--border); }
+.btn.danger { color: var(--c-danger); }
+.btn .spin { animation: girar 0.9s linear infinite; }
+@keyframes girar { to { transform: rotate(360deg); } }
+
+.seg { display: inline-flex; height: 32px; padding: 2px; gap: 2px; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--bg-2); }
+.seg button { background: none; border: none; padding: 0 11px; border-radius: 4px; cursor: pointer; color: var(--text-2); font-size: var(--fs-sm); transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease); }
+.seg button:hover { color: var(--text-1); }
+.seg button.on { background: var(--bg-3); color: var(--text-1); font-weight: 550; box-shadow: inset 0 0 0 1px var(--border-strong); }
+.seg button:last-child { border-right: none; }

@@ -1,0 +1,64 @@
+/*
+ * Sistema visual de CONTENT OS. Todo color, tamaño y radio sale de aquí.
+ * Tema oscuro (único por ahora). Para añadir un tema claro basta con redefinir estas variables
+ * bajo :root[data-theme="light"]; ningún componente usa colores sueltos.
+ */
+:root {
+  color-scheme: dark;
+
+  /* superficies: de más hundida a más elevada */
+  --bg-0: #0b0c0f;        /* barra lateral */
+  --bg-1: #101115;        /* fondo de trabajo */
+  --bg-2: #16171c;        /* paneles y tablas */
+  --bg-3: #1d1f25;        /* hover, campos, elementos elevados */
+  --border: #25272e;
+  --border-strong: #353842;
+
+  /* texto (contraste sobre --bg-1: 15:1, 7,4:1 y 4,7:1) */
+  --text-1: #ecedf1;
+  --text-2: #a4a7b3;
+  --text-3: #7c808d;
+
+  /* color con significado */
+  --accent: #7089ff;      /* acciones y selección */
+  --c-views: #5b9dff;     /* visitas */
+  --c-money: #3ec58a;     /* dinero */
+  --c-goal: #e0a63c;      /* umbrales, plazos cercanos */
+  --c-danger: #ee6b63;    /* errores, bloqueos, ceros que importan */
+  --c-closed: #6c707c;    /* cerrado, inactivo */
+
+  /* tipografía */
+  --font: "Inter Variable", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "Cascadia Mono", Consolas, monospace;
+  --fs-xs: 11.5px;
+  --fs-sm: 12.5px;
+  --fs-md: 14px;
+  --fs-lg: 16px;
+  --fs-xl: 20px;
+  --fs-2xl: 28px;
+
+  /* forma y ritmo */
+  --r-sm: 6px;
+  --r-md: 10px;
+  --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px; --sp-5: 24px; --sp-6: 32px;
+  --side-w: 232px;
+  --page-w: 1360px;
+  --t-fast: 120ms;
+  --t-med: 180ms;
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+
+  /* nombres anteriores: los usan las pantallas que aún no se han rediseñado */
+  --bg: var(--bg-1); --side: var(--bg-0); --panel: var(--bg-2); --panel2: var(--bg-3); --line: var(--border);
+  --text: var(--text-1); --muted: var(--text-2); --faint: var(--text-3);
+  --ok: var(--c-money); --warn: var(--c-goal); --bad: var(--c-danger);
+
+  font-family: var(--font);
+  font-size: var(--fs-md);
+  color: var(--text-1);
+  font-feature-settings: "cv11", "ss01";
+  -webkit-font-smoothing: antialiased;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root { --t-fast: 0ms; --t-med: 0ms; }
+}

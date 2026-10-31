@@ -1,0 +1,48 @@
+/* Pantalla «Fuera de campaña»: vídeos sin campaña, por grupos, en tarjetas verticales. */
+
+.xgroup { margin-bottom: var(--sp-6, 32px); }
+.xgroup-h { display: flex; align-items: baseline; gap: 12px; margin-bottom: var(--sp-2); }
+.xgroup-h h2 { margin: 0; font-size: var(--fs-lg); font-weight: 620; letter-spacing: -0.01em; text-transform: none; color: var(--text-1); }
+.xnotes { margin: 0 0 var(--sp-3); max-width: 96ch; font-size: var(--fs-sm); color: var(--text-2); line-height: 1.5; }
+.xgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: var(--sp-4); align-items: start; }
+
+.xcard { display: flex; flex-direction: column; background: var(--bg-2); border: 1px solid var(--border); border-radius: var(--r-md); overflow: hidden; min-width: 0; }
+.xvideo { position: relative; aspect-ratio: 9 / 16; background: #000; }
+.xvideo video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.xplay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; border: none; cursor: pointer; color: #fff;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0) 55%, rgba(0, 0, 0, .45)); }
+.xplay svg { padding: 14px; width: 58px; height: 58px; border-radius: 50%; background: rgba(0, 0, 0, .55); transition: transform .12s, background .12s; }
+.xplay:hover svg { transform: scale(1.08); background: var(--accent); }
+.xdur { position: absolute; right: 8px; bottom: 8px; padding: 2px 7px; border-radius: 6px; background: rgba(0, 0, 0, .7); color: #fff; font-size: var(--fs-xs); font-variant-numeric: tabular-nums; pointer-events: none; }
+
+.xbody { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px 12px; }
+.xbody h3 { margin: 0; font-size: var(--fs-md); font-weight: 600; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.xmeta { display: flex; flex-wrap: wrap; gap: 2px 10px; font-size: var(--fs-xs); color: var(--text-3); }
+.xmeta > span + span::before { content: "·"; margin-right: 10px; color: var(--border-strong); }
+.xmeta .ok { color: var(--c-money); }
+.xcopy { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.xcopy .btn { display: inline-flex; align-items: center; gap: 5px; }
+.xcopy .btn.ghost { padding: 0 7px; }
+.xcopy .sp { flex: 1; }
+.xplat { display: flex; gap: 6px; }
+.xchip { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 4px; height: 26px; padding: 0 6px; border-radius: 999px; cursor: pointer;
+  border: 1px solid var(--border-strong); background: none; color: var(--text-3); font: inherit; font-size: var(--fs-xs); }
+.xchip:hover:not(:disabled) { color: var(--text-1); border-color: var(--text-3); }
+.xchip.on { color: #fff; border-color: transparent; }
+.xchip.on.youtube { background: #c4302b; }
+.xchip.on.tiktok { background: #1f8f8a; }
+.xchip.on.instagram { background: #b5367a; }
+.xgroup-h .sp { flex: 1; }
+.xgroup-h .btn { align-self: center; display: inline-flex; align-items: center; gap: 5px; }
+.xconfirm .btn { flex: none; }
+
+/* ---- portada: una tarjeta por vídeo original (mismo aspecto que las de Campañas, con su miniatura) */
+.card.xgcard { padding: 0; overflow: hidden; display: flex; flex-direction: column; }
+.xgthumb { position: relative; aspect-ratio: 16 / 9; background: #000; }
+.xgthumb img, .xgthumb video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.xgcount { position: absolute; left: 10px; bottom: 10px; padding: 3px 9px; border-radius: 999px; background: rgba(0, 0, 0, .72); color: #fff; font-size: var(--fs-xs); font-weight: 600; }
+.xgbody { padding: 14px 18px 16px; }
+.xgbody h3 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.xgbody dd.ok { color: var(--c-money); }
+.card.xgcard:hover .xgthumb img { filter: brightness(1.08); }
+.xback { display: inline-flex; align-items: center; gap: 6px; margin-bottom: 10px; color: var(--text-2); font-size: var(--fs-sm); }

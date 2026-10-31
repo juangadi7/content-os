@@ -1,0 +1,9 @@
+node_modules/
+out/
+dist/
+*.log
+backups/
+docs/real-sync-report.json
+.env
+demo/dist/
+demo/web/media/

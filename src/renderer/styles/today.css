@@ -1,0 +1,103 @@
+/* Pantalla «Hoy»: una tarjeta por canal, con su imagen, lo que toca subir y los botones para hacerlo. */
+
+.tsum .sep { margin-right: 8px; }
+.tgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(430px, 1fr)); gap: var(--sp-4); align-items: start; }
+
+.tcard { display: flex; flex-direction: column; gap: var(--sp-3); padding: var(--sp-4); background: var(--bg-2); border: 1px solid var(--border); border-radius: var(--r-md); min-width: 0; }
+/* el canal al que hoy le toca subir algo destaca sobre los que ya han cumplido */
+.tcard.todo { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
+
+.tcard-h { display: flex; align-items: center; gap: 12px; }
+.tavatar { flex: none; width: 46px; height: 46px; border-radius: 50%; object-fit: cover; background: var(--bg-3); }
+.tavatar.ph { display: flex; align-items: center; justify-content: center; font-size: 19px; font-weight: 650; color: #fff; background: var(--c-closed); }
+.tavatar.ph.youtube { background: #c4302b; }
+.tavatar.ph.tiktok { background: #1f8f8a; }
+.tavatar.ph.instagram { background: #b5367a; }
+.tcard-n { min-width: 0; flex: 1; }
+.tcard-n h2 { margin: 0; font-size: var(--fs-lg); font-weight: 620; letter-spacing: -0.01em; text-transform: none; color: var(--text-1); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tcard-p { font-size: var(--fs-xs); color: var(--text-3); }
+.tpill { flex: none; display: inline-flex; align-items: center; gap: 5px; height: 26px; padding: 0 11px; border-radius: 999px; border: 1px solid var(--border-strong); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; color: var(--text-2); }
+.tpill.ok { color: var(--c-money); border-color: color-mix(in srgb, var(--c-money) 45%, transparent); }
+
+.tdone { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: var(--fs-sm); color: var(--text-2); }
+.tdone > svg { flex: none; color: var(--c-money); }
+.tdone .linklike:first-of-type { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.tstate { display: flex; align-items: center; gap: 8px; font-size: var(--fs-sm); color: var(--text-2); }
+.tstate svg { flex: none; color: var(--text-3); }
+.tstate strong { color: var(--text-1); font-weight: 600; }
+.tstate.warn { color: var(--c-goal); } .tstate.warn svg { color: var(--c-goal); }
+.tstate.ok { color: var(--c-money); } .tstate.ok svg { color: var(--c-money); }
+
+/* ---- el clip que toca */
+.tclip { display: flex; flex-direction: column; gap: 10px; padding: 10px; background: var(--bg-1); border: 1px solid var(--border); border-radius: var(--r-sm); }
+.tclip.next { margin-top: 10px; background: none; border-style: dashed; }
+.tclip-main { display: flex; align-items: center; gap: 12px; min-width: 0; padding: 0; background: none; border: none; text-align: left; cursor: pointer; color: inherit; font: inherit; }
+.tclip-main .thumb { flex: none; width: 54px; height: 96px; border-radius: 6px; }
+.tclip.next .tclip-main .thumb { width: 40px; height: 71px; opacity: 0.8; }
+.tclip-txt { min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.tclip-t { font-size: var(--fs-md); font-weight: 580; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.tclip-main:hover .tclip-t { color: var(--accent); }
+.tclip-m { display: flex; flex-wrap: wrap; gap: 2px 10px; font-size: var(--fs-xs); color: var(--text-3); font-variant-numeric: tabular-nums; }
+.tclip-m > span + span::before { content: "·"; margin-right: 10px; color: var(--border-strong); }
+.tclip-m .warn { color: var(--c-goal); }
+.tclip-b { display: flex; gap: 8px; }
+.tclip-b .btn { flex: 1; justify-content: center; height: 36px; }
+.tclip.next .tclip-b .btn { flex: none; height: 28px; font-size: var(--fs-sm); }
+
+/* ---- lo que antes era texto a la vista, ahora plegado */
+.tnote, .tskip { font-size: var(--fs-sm); color: var(--text-2); }
+.tnote summary, .tskip summary { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; color: var(--text-3); list-style: none; user-select: none; }
+.tnote summary::-webkit-details-marker, .tskip summary::-webkit-details-marker { display: none; }
+.tnote summary:hover, .tskip summary:hover { color: var(--text-1); }
+.tnote[open] summary, .tskip[open] summary { color: var(--text-2); margin-bottom: 6px; }
+.tnote p { line-height: 1.5; padding-left: 10px; border-left: 2px solid var(--border-strong); }
+.tskip { margin-top: var(--sp-5); }
+.tskip summary::before { content: "▸"; }
+.tskip[open] summary::before { content: "▾"; }
+.tskip li { line-height: 1.5; margin-bottom: 4px; }
+.tfoot { margin-top: var(--sp-3); }
+
+/* ---- canal sin clip de campaña: el motivo y un vídeo de «Fuera de campaña» */
+.tstate.tlong { align-items: flex-start; line-height: 1.5; }
+.tstate.tlong svg { margin-top: 3px; }
+.tlink { color: var(--accent); text-decoration: underline; }
+.tclip.textra { border-style: dashed; }
+.tclip.textra .tclip-main { cursor: default; }
+.tclip.textra video.thumb { flex: none; width: 54px; height: 96px; border-radius: 6px; object-fit: cover; background: #000; }
+.tclip-again { font-size: var(--fs-xs); color: var(--c-goal); line-height: 1.4; }
+
+/* ---- Enviar a Vyro: lo ya público que falta mandar */
+.vsend { margin-bottom: 16px; padding: 12px 14px; border-radius: var(--r-md); background: rgba(54, 181, 201, .08); border: 1px solid rgba(54, 181, 201, .35); }
+.vsend-h { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; color: #7fd6e3; }
+.vsend-h h2 { font-size: var(--fs-md); font-weight: 600; color: var(--text-1); }
+.vsend-h h2 span { margin-left: 4px; padding: 0 7px; border-radius: 999px; background: #36b5c9; color: #06181b; font-size: var(--fs-xs); }
+.vsend-h .sp { flex: 1; }
+.vsend-h .btn { display: inline-flex; align-items: center; gap: 5px; }
+.vsend ul { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.vsend li { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "t b" "m b"; gap: 2px 12px; align-items: center; padding: 8px 10px; border-radius: var(--r-sm); background: var(--bg-2); }
+.vsend-t { grid-area: t; text-align: left; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vsend-m { grid-area: m; font-size: var(--fs-xs); color: var(--text-2); }
+.vsend-b { grid-area: b; display: inline-flex; align-items: center; gap: 6px; }
+.vsend-b .btn { display: inline-flex; align-items: center; gap: 5px; }
+.nav .n.pill.warn { background: rgba(54, 181, 201, .18); color: #7fd6e3; }
+
+/* ---- Vyro: tu cuenta y tus envíos */
+.vacc { margin-bottom: 18px; padding: 14px 16px; border-radius: var(--r-md); background: var(--bg-2); border: 1px solid var(--border); }
+.vacc-h { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+.vacc-h h2 { font-size: var(--fs-lg); font-weight: 600; }
+.vacc-h .sp { flex: 1; }
+.vacc-h .btn { display: inline-flex; align-items: center; gap: 5px; }
+.vacc-earned { font-weight: 700; color: var(--c-money); margin-right: 6px; }
+.vacc-t { width: 100%; border-collapse: collapse; font-size: var(--fs-sm); }
+.vacc-t th { text-align: left; font-weight: 600; color: var(--text-3); font-size: var(--fs-xs); padding: 6px 8px; border-bottom: 1px solid var(--border); }
+.vacc-t td { padding: 7px 8px; border-bottom: 1px solid var(--border); font-variant-numeric: tabular-nums; }
+.vacc-t td.ok { color: var(--c-money); } .vacc-t td.warn { color: var(--c-goal); } .vacc-t td.bad { color: var(--c-danger); }
+.vsend-t { display: flex; align-items: center; gap: 8px; min-width: 0; white-space: normal; }
+.vsend-t .linklike { font-weight: 600; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.vsend-pf { flex: none; padding: 1px 7px; border-radius: 999px; font-size: var(--fs-xs); font-weight: 600; background: var(--bg-3); color: var(--text-2); }
+.vsend-pf.youtube { background: rgba(196, 48, 43, .2); color: #ff8a84; }
+.vsend-pf.tiktok { background: rgba(31, 143, 138, .2); color: #6fe0d9; }
+.vsend-pf.instagram { background: rgba(181, 54, 122, .2); color: #ff8fcb; }
+.vsend-no { flex: none; padding: 1px 7px; border-radius: 999px; font-size: 10.5px; font-weight: 600; background: rgba(238, 107, 99, .16); color: var(--c-danger); }
+.vsend-url { color: var(--text-2); text-decoration: underline; text-underline-offset: 2px; word-break: break-all; }
