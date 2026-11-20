@@ -33,7 +33,7 @@ beforeEach(() => {
   syncLibraries(db, { roots: [root] })
   db.prepare("UPDATE campaigns SET ends_at = '2026-10-29'").run()
   db.prepare(`INSERT INTO vyro_campaigns (vyro_id, slug, name, first_seen_at, last_seen_at, campaign_id, link_state) VALUES (?, 's', 'Total Drama', 't', 't', 'drama', 'auto')`).run(VYRO)
-  db.prepare(`INSERT INTO youtube_channels (channel_id, handle, title, uploads_playlist, added_at, kind) VALUES ('UCxxxxxxxxxxxxxxxxxxxxxx', '@Shortsdemo', 'Shortty', 'UU', 't', 'clips')`).run()
+  db.prepare(`INSERT INTO youtube_channels (channel_id, handle, title, uploads_playlist, added_at, kind) VALUES ('UCxxxxxxxxxxxxxxxxxxxxxx', '@Shortsdemo', 'Shorts demo', 'UU', 't', 'clips')`).run()
 })
 afterEach(() => {
   db.close()

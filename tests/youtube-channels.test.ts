@@ -315,8 +315,8 @@ describe('migración del esquema', () => {
     v1.close()
 
     const db = openDatabase(ruta, { backupDir: backups })
-    expect(SCHEMA_VERSION).toBe(16)
-    expect(db.pragma("user_version", { simple: true })).toBe(16)
+    expect(SCHEMA_VERSION).toBe(18)
+    expect(db.pragma("user_version", { simple: true })).toBe(18)
     expect(db.prepare('SELECT title FROM clips').get()).toEqual({ title: 'Clip de antes' })
     expect(db.prepare('SELECT views FROM analytics_snapshots').get()).toEqual({ views: 5180 })
     expect(db.prepare('SELECT COUNT(*) AS n FROM youtube_channels').get()).toEqual({ n: 0 })

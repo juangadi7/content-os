@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import { CHANNELS, type AppState, type ContentOsApi, type SyncResult } from '../core/api'
 
 // Única puerta de la interfaz al sistema: funciones concretas, sin acceso a Node ni a ipcRenderer.
@@ -26,6 +26,21 @@ const api: ContentOsApi = {
   youtubeUnlinkVideo: (videoId) => ipcRenderer.invoke(CHANNELS.youtubeUnlinkVideo, videoId),
   youtubeIgnoreVideo: (videoId, ignored) => ipcRenderer.invoke(CHANNELS.youtubeIgnoreVideo, videoId, ignored),
   youtubeDashboard: (kind) => ipcRenderer.invoke(CHANNELS.youtubeDashboard, kind),
+  getMetricoolQueue: () => ipcRenderer.invoke(CHANNELS.getMetricoolQueue),
+  getOwnStats: (channel) => ipcRenderer.invoke(CHANNELS.getOwnStats, channel),
+  addOwnAccount: (channel, platform, account) => ipcRenderer.invoke(CHANNELS.addOwnAccount, channel, platform, account),
+  removeOwnAccount: (channel, id) => ipcRenderer.invoke(CHANNELS.removeOwnAccount, channel, id),
+  setOwnPost: (input) => ipcRenderer.invoke(CHANNELS.setOwnPost, input),
+  addOwnStats: (input) => ipcRenderer.invoke(CHANNELS.addOwnStats, input),
+  pickVideos: (mode) => ipcRenderer.invoke(CHANNELS.pickVideos, mode),
+  listVideoFiles: (paths) => ipcRenderer.invoke(CHANNELS.listVideoFiles, paths),
+  importVideos: (channel, items) => ipcRenderer.invoke(CHANNELS.importVideos, channel, items),
+  pathForFile: (file) => webUtils.getPathForFile(file),
+  pickBackground: () => ipcRenderer.invoke(CHANNELS.pickBackground),
+  resetBackground: () => ipcRenderer.invoke(CHANNELS.resetBackground),
+  getFabrica: () => ipcRenderer.invoke(CHANNELS.getFabrica),
+  fabricaStart: (n) => ipcRenderer.invoke(CHANNELS.fabricaStart, n),
+  fabricaOpen: (what, ref) => ipcRenderer.invoke(CHANNELS.fabricaOpen, what, ref),
   socialRefresh: (force) => ipcRenderer.invoke(CHANNELS.socialRefresh, force),
   socialDashboard: () => ipcRenderer.invoke(CHANNELS.socialDashboard),
   socialLinkVideo: (platform, videoId, clipId) => ipcRenderer.invoke(CHANNELS.socialLinkVideo, platform, videoId, clipId),
@@ -70,7 +85,7 @@ const api: ContentOsApi = {
   showExtraInFolder: (id) => ipcRenderer.invoke(CHANNELS.showExtraInFolder, id),
   trashExtras: (groupId) => ipcRenderer.invoke(CHANNELS.trashExtras, groupId),
   listLongVideos: (kind) => ipcRenderer.invoke(CHANNELS.listLongVideos, kind),
-  setLongUploaded: (id, uploaded, kind) => ipcRenderer.invoke(CHANNELS.setLongUploaded, id, uploaded, kind),
+  setLongUploaded: (id, uploaded, kind, platform) => ipcRenderer.invoke(CHANNELS.setLongUploaded, id, uploaded, kind, platform),
   openLongVideo: (id, kind) => ipcRenderer.invoke(CHANNELS.openLongVideo, id, kind),
   showLongInFolder: (id, kind) => ipcRenderer.invoke(CHANNELS.showLongInFolder, id, kind),
   trashCampaign: (campaignId) => ipcRenderer.invoke(CHANNELS.trashCampaign, campaignId),

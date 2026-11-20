@@ -49,7 +49,10 @@ const lectura: Partial<Record<keyof ContentOsApi, (...a: any[]) => Promise<unkno
   getAccountBook: () => leer(A.getAccountBook),
   getVyroAccount: () => leer(A.getVyroAccount),
   listExtras: () => leer(A.listExtras),
-  listLongVideos: (kind?: string) => leer(A.listLongVideos[kind === 'music' ? 'music' : 'long']),
+  listLongVideos: (kind?: string) => leer(A.listLongVideos[kind && A.listLongVideos[kind] ? kind : 'long']),
+  getOwnStats: (channel: string) => leer(A.getOwnStats[channel] ?? A.getOwnStats.gta),
+  getFabrica: () => leer(A.getFabrica),
+  getMetricoolQueue: () => leer(A.getMetricoolQueue),
   getRawFiles: () => leer({ files: [], totalBytes: 0, folder: null }),
   // acciones que devuelven la vista actualizada: en la demo, la misma de siempre
   youtubeRefresh: () => leer({ channels: 1, videos: 15, linkedNow: 0, unmatched: 0, measured: 0 }),

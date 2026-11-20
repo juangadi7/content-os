@@ -30,6 +30,10 @@ import { getSocialDashboards } from '../src/core/social'
 import { addChannel, listChannels, syncChannels, syncChannelStats } from '../src/core/youtube-channels'
 import type { FetchLike } from '../src/core/youtube'
 import { CampaignFixture } from '../tests/fixtures/builder'
+import { OWN_CHANNELS, addOwnAccount, addOwnStats, getOwnChannelStats, setOwnPost, type OwnChannel, type OwnPlatform } from '../src/core/own-channels'
+import { importOwnVideos } from '../src/core/own-import'
+import { readFabrica } from '../src/core/fabrica'
+import { applyMetricoolQueue, metricoolQueueView, readMetricoolQueue, scheduledByFolder } from '../src/core/metricool-queue'
 
 const OUT = path.join(__dirname, 'out')
 const NOW = new Date()
@@ -198,6 +202,129 @@ async function main() {
   for (const l of ['A', 'B', 'C']) fs.writeFileSync(path.join(carpeta, `miniatura_${l}.jpg`), 'demo')
   fs.writeFileSync(path.join(carpeta, 'mantenimiento_canal.srt'), '1\n00:00:00,000 --> 00:00:03,000\nDemo\n')
 
+
+  // ---------------------------------------------------------------- canales propios (GTA 6, Curiosidades, Historias Roblox)
+  // Los vídeos entran con la misma función que «Añadir vídeos»; las subidas y las cifras, con las de «Apuntar cifras».
+  const PROPIOS: Record<OwnChannel, { carpeta: string; cuentas: Partial<Record<OwnPlatform, string>>; videos: [string, number, number][] }> = {
+    gta: { carpeta: 'VIDEOS_GTA6', cuentas: { tiktok: '@noticiasdemo', youtube: '@gta6demo' }, videos: [
+      ['GTA 6: todo lo que sabemos del mapa', -26, 48000], ['Los 5 detalles del tráiler que nadie vio', -19, 91000],
+      ['¿Cuánto costará GTA 6? Lo que dicen las tiendas', -12, 23500], ['Vice City entonces y ahora', -6, 35800], ['Las físicas del agua en GTA 6', -2, 7400]
+    ] },
+    curio: { carpeta: 'VIDEOS_CURIOSIDADES', cuentas: { youtube: '@curiosidadesdemo', tiktok: '@curiosidades.demo', instagram: '@curiosidades.demo' }, videos: [
+      ['El espía que engañó a medio mundo desde un sofá', -21, 64000], ['El pueblo donde está prohibido morir', -16, 120000],
+      ['Por qué los aviones no vuelan en línea recta', -11, 41000], ['El hombre que vivió 18 años en un aeropuerto', -7, 88000],
+      ['La isla que cambia de país cada seis meses', -3, 15600], ['El sonido que se oyó a 4.800 km', -1, 2100]
+    ] },
+    roblox: { carpeta: 'VIDEOS_ROBLOX', cuentas: { youtube: '@historiasdemo' }, videos: [
+      ['La casa del árbol que nadie construyó', -15, 18200], ['El servidor que se quedó vacío a las 3:00', -9, 27400], ['Mi mejor amigo era un bot', -4, 9900]
+    ] }
+  }
+  const tmpMp4 = path.join(base, 'mp4')
+  fs.mkdirSync(tmpMp4, { recursive: true })
+  const carpetasPropias = {} as Record<OwnChannel, string>
+  for (const c of OWN_CHANNELS) {
+    const def = PROPIOS[c]
+    carpetasPropias[c] = path.join(base, def.carpeta)
+    const items = def.videos.map(([titulo], i) => {
+      const f = path.join(tmpMp4, `${c}_${i + 1}.mp4`)
+      fs.writeFileSync(f, `demo ${c} ${i}`)
+      return { path: f, title: titulo, description: `${titulo} #shorts` }
+    })
+    const creados = importOwnVideos(carpetasPropias[c], c, items).created
+    // portada de cada vídeo (la imagen real la dibuja demo/make_media.py)
+    for (const { id } of creados) fs.writeFileSync(path.join(carpetasPropias[c], id, 'miniatura_A.jpg'), 'demo')
+    for (const [plat, cuenta] of Object.entries(def.cuentas) as [OwnPlatform, string][]) addOwnAccount(db, c, plat, cuenta, iso(dia(-30, 9)))
+    creados.forEach(({ id }, i) => {
+      const [, subida, techo] = def.videos[i]
+      for (const [plat, cuenta] of Object.entries(def.cuentas) as [OwnPlatform, string][]) {
+        const factor = plat === 'tiktok' ? 1.3 : plat === 'instagram' ? 0.45 : 1
+        const url = plat === 'youtube' ? `https://www.youtube.com/shorts/${(c + i + 'demo').padEnd(11, 'x').slice(0, 11)}`
+          : plat === 'tiktok' ? `https://www.tiktok.com/${cuenta}/video/73000000000000${String(i + 1).padStart(5, '0')}` : null
+        setOwnPost(db, { channel: c, video: id, platform: plat, uploaded: true, url, account: cuenta }, iso(dia(subida, 18)))
+        // mediciones a las ~2 h, 1 día, 2 días, 4 días, 1 semana y anoche
+        const horas = [2, 24, 48, 96, 168, (-1 - subida) * 24 + 4].filter((h, k, a) => h > 0 && a.indexOf(h) === k && subida + h / 24 <= -0.2)
+        for (const h of horas) {
+          const t = new Date(dia(subida, 18).getTime() + h * 3_600_000)
+          const v = Math.round(techo * factor * (1 - Math.exp(-h / 40)))
+          addOwnStats(db, {
+            channel: c, video: id, platform: plat, views: v, likes: Math.round(v * 0.052), comments: Math.round(v * 0.003), shares: Math.round(v * 0.007),
+            ...(plat === 'youtube' ? { viewedPct: 62 + (i * 7) % 20, avgViewS: 19 + (i * 3) % 12, retention: 74 + (i * 5) % 18 } : {})
+          }, t.toISOString())
+        }
+      }
+    })
+  }
+
+  // ---------------------------------------------------------------- Fábrica de Curiosidades (equipo de agentes de IA)
+  const fab = path.join(base, 'Canal curiosidades')
+  const escribir = (rel: string, datos: unknown) => {
+    const r = path.join(fab, rel)
+    fs.mkdirSync(path.dirname(r), { recursive: true })
+    fs.writeFileSync(r, typeof datos === 'string' ? datos : JSON.stringify(datos, null, 1))
+  }
+  const fechaTanda = dayStr(dia(0, 9))
+  const tanda = [
+    { id: '61-sofa', tema: 'El espía del sofá', titulo: 'El espía que engañó a medio mundo desde un sofá', paso: 'listo', nota: 94 },
+    { id: '62-aeropuerto', tema: 'Aeropuerto', titulo: 'El hombre que vivió 18 años en un aeropuerto', paso: 'listo', nota: 91 },
+    { id: '63-isla', tema: 'Isla compartida', titulo: 'La isla que cambia de país cada seis meses', paso: 'revision', nota: null },
+    { id: '64-sonido', tema: 'El sonido más fuerte', titulo: 'El sonido que se oyó a 4.800 km', paso: 'animacion', nota: null },
+    { id: '65-faro', tema: 'El faro sin farero', titulo: 'El faro que lleva 100 años encendido solo', paso: 'guion', nota: null }
+  ]
+  escribir(`fabrica/tandas/${fechaTanda}/estado.json`, {
+    fecha: fechaTanda, N: tanda.length,
+    videos: tanda.map((t) => ({ id: t.id, tema: t.tema, paso: t.paso, nota: t.nota, intentos: t.id === '63-isla' ? 1 : 0, motivo: t.id === '63-isla' ? 'El segundo 0 no engancha: se repite la animación.' : '', ...(t.paso === 'listo' ? { render: 'v1' } : {}) })),
+    cola: [
+      { dia: dayStr(futuro(1)), hora: '10:00', video: '61-sofa', archivo: '61-sofa.mp4', estado: 'programado' },
+      { dia: dayStr(futuro(1)), hora: '18:00', video: '62-aeropuerto', archivo: '62-aeropuerto.mp4', estado: 'propuesto' }
+    ],
+    metricool: 'Uno programado; el otro espera tu OK.'
+  })
+  escribir(`fabrica/tandas/${fechaTanda}/temas.json`, {
+    candidatos: [
+      { id: 't1', tema: 'El espía del sofá', nota_tema: 9, elegido: true }, { id: 't2', tema: 'Aeropuerto', nota_tema: 9, elegido: true },
+      { id: 't3', tema: 'Isla compartida', nota_tema: 8, elegido: true }, { id: 't4', tema: 'El sonido más fuerte', nota_tema: 8, elegido: true },
+      { id: 't5', tema: 'El faro sin farero', nota_tema: 7, elegido: true }, { id: 't6', tema: 'La ciudad bajo el hielo', nota_tema: 7, reserva: true },
+      { id: 't7', tema: 'Récords de la lotería', nota_tema: 5 }
+    ],
+    revision_tema: { elegidos: ['t1', 't2', 't3', 't4', 't5'], reservas: ['t6'], fuera: ['t7'] }
+  })
+  for (const t of tanda) {
+    escribir(`videos/${t.id}/guion.json`, { title: t.titulo })
+    if (t.nota) escribir(`videos/${t.id}/revision/nota.json`, { total: t.nota, veredicto: 'pasa', nota_tema: 9,
+      guion: { puntos: t.nota - 37, detalle: { pregunta_abierta: 14, gancho: 15 } }, video_final: { puntos: 37, detalle: { segundo0: 14, ritmo: 12 } } })
+  }
+  escribir(`fabrica/mejoras/${fechaTanda}/MEJORAS.md`, '# Mejoras\n')
+  escribir(`fabrica/mejoras/${fechaTanda}/mejoras.json`, {
+    fecha: fechaTanda, resumen: 'Los vídeos que más funcionan enseñan la imagen más rara en el segundo 0.', importante: true,
+    aviso: 'Abrir con la escena más increíble', nuestros: 'Los dos últimos superan el 70 % de retención en YouTube.',
+    virales: [{ titulo: 'El pueblo que no aparece en los mapas', enlace: 'https://www.youtube.com/shorts/demoviral01', visitas: 2_300_000, por_que_funciona: 'Pregunta abierta en la primera frase' }],
+    mejoras: [
+      { titulo: 'Imagen imposible en el segundo 0', que: 'Abrir con la escena final', por_que: '3 de 3 virales lo hacen', tipo: 'gratis', coste: '0 €', importancia: 'alta', quien: 'animador' },
+      { titulo: 'Subtítulos más grandes', que: 'Subir a 90 px', por_que: 'Se leen mejor en el móvil', tipo: 'gratis', importancia: 'baja', quien: 'animador' },
+      { titulo: 'Voz más natural', que: 'Probar otra voz sintética', por_que: 'Retención', tipo: 'pago', coste: '5 €/mes', importancia: 'media', quien: 'voz' }
+    ]
+  })
+  const fabrica = readFabrica(fab)
+
+  // ---------------------------------------------------------------- cola de Metricool (vídeos programados de Curiosidades)
+  const curioVista = listLongVideos(db, carpetasPropias.curio, 'curio').videos
+  const curioIds = curioVista.map((v) => v.id)
+  const idDe = (titulo: string) => curioVista.find((v) => v.titles[0]?.text === titulo)!.id
+  fs.mkdirSync(path.join(fab, 'fabrica'), { recursive: true })
+  const colaFile = path.join(fab, 'fabrica', 'cola_metricool.json')
+  fs.writeFileSync(colaFile, JSON.stringify({
+    actualizado: iso(dia(0, 8)),
+    programados: [
+      { carpeta_content_os: idDe(PROPIOS.curio.videos[4][0]), nn: idDe(PROPIOS.curio.videos[4][0]), titulo: PROPIOS.curio.videos[4][0], red: 'YouTube Shorts', fecha: `${dayStr(dia(-3))}T10:00`, estado: 'publicado' },
+      { carpeta_content_os: idDe(PROPIOS.curio.videos[5][0]), nn: idDe(PROPIOS.curio.videos[5][0]), titulo: PROPIOS.curio.videos[5][0], red: 'YouTube Shorts', fecha: `${dayStr(futuro(1))}T10:00`, estado: 'programado' },
+      { carpeta_content_os: 'proximo', nn: '62', titulo: 'El hombre que vivió 18 años en un aeropuerto', red: 'YouTube Shorts', fecha: `${dayStr(futuro(1))}T18:00`, estado: 'programado' }
+    ],
+    problemas: []
+  }))
+  const cola = readMetricoolQueue(colaFile)
+  applyMetricoolQueue(db, cola, new Set(curioIds))
+  const programados = scheduledByFolder(cola)
+
   // ---------------------------------------------------------------- respuestas de la interfaz
   syncLibraries(db, { roots: [root], thumbsDir: path.join(base, 'ContentOS', 'thumbs') }) // última lectura: ahora
   const ahora = new Date()
@@ -208,6 +335,12 @@ async function main() {
   for (const v of largosView.videos) v.sizeBytes = null // el MP4 de la carpeta temporal es de mentira; el de la demo se genera aparte
   const musica = listLongVideos(db, path.join(base, 'VIDEOS_MUSICA'), 'music')
   const control = getVideoControl(db)
+  const propios = Object.fromEntries(OWN_CHANNELS.map((c) => {
+    const vista = { ...listLongVideos(db, carpetasPropias[c], c), folder: `C:\\demo\\${PROPIOS[c].carpeta}` }
+    for (const v of vista.videos) v.sizeBytes = null
+    if (c === 'curio') vista.videos = vista.videos.map((v) => ({ ...v, scheduledAt: programados.get(v.id) ?? null }))
+    return [c, vista]
+  })) as Record<OwnChannel, ReturnType<typeof listLongVideos>>
   const desde = dayStr(dia(-35)), hasta = dayStr(futuro(35))
   const api: Record<string, unknown> = {
     getState: {
@@ -217,7 +350,13 @@ async function main() {
       personalChannels: listChannels(db, 'personal'), todayLeft: plan.left, accounts: listAccounts(db), vyroNew: 0,
       videosAlert: control.counts.duplicate + control.counts.missing + control.counts.manual + control.counts.not_found + control.counts.unchecked,
       vyroToSend: listVyroPending(db).length, extrasCount: extras.total, longPending: largosView.videos.filter((v) => !v.uploadedAt).length,
-      musicPending: musica.videos.filter((v) => !v.uploadedAt).length
+      musicPending: musica.videos.filter((v) => !v.uploadedAt).length,
+      cityPending: 0,
+      robloxPending: propios.roblox.videos.filter((v) => !v.uploadedAt).length,
+      curioPending: propios.curio.videos.filter((v) => !v.uploadedAt && !v.scheduledAt).length,
+      gtaPending: propios.gta.videos.filter((v) => !v.uploadedAt).length,
+      ownVideos: Object.fromEntries(OWN_CHANNELS.map((c) => [c, propios[c].total])),
+      background: null
     },
     listClips: Object.fromEntries([['', listClips(db, null)], ...campañas.map((c) => [c.campaignId, listClips(db, c.campaignId)])]),
     getClip: Object.fromEntries(TODOS.map((k) => [k.id, getClip(db, k.id)])),
@@ -244,7 +383,10 @@ async function main() {
     })(),
     getVyroAccount: { connected: false },
     listExtras: extras,
-    listLongVideos: { long: { ...largosView, folder: 'C:\\demo\\VIDEOS_LARGOS' }, music: { ...musica, folder: 'C:\\demo\\VIDEOS_MUSICA' } },
+    listLongVideos: { long: { ...largosView, folder: 'C:\\demo\\VIDEOS_LARGOS' }, city: { ...musica, folder: 'C:\\demo\\VIDEOS_CIUDAD' }, music: { ...musica, folder: 'C:\\demo\\VIDEOS_MUSICA' }, ...propios },
+    getOwnStats: Object.fromEntries(OWN_CHANNELS.map((c) => [c, getOwnChannelStats(db, c, propios[c].videos.map((v) => ({ id: v.id, title: v.titles[0]?.text ?? v.id, description: v.description })), [])])),
+    getFabrica: fabrica,
+    getMetricoolQueue: metricoolQueueView(cola, ahora),
     getRawFiles: null,
     calendarRange: [desde, hasta]
   }
@@ -258,7 +400,9 @@ async function main() {
     clips: TODOS.map((k) => ({ id: k.id, title: k.title, campaign: k.campaign })),
     channel: CH,
     videos: TODOS.map((k) => ({ videoId: vid(k.id), title: k.title, campaign: k.campaign })),
-    long: largosView.videos.map((v) => v.id)
+    long: largosView.videos.map((v) => v.id),
+    own: Object.fromEntries(OWN_CHANNELS.map((c) => [c, propios[c].videos.map((v) => ({ id: v.id, title: v.titles[0]?.text ?? v.id }))])),
+    fabrica: tanda.map((t) => ({ id: t.id, title: t.titulo }))
   }, null, 1))
   console.log(`demo: ${TODOS.length} clips, ${listPublished(db).length} publicaciones → ${OUT}`)
   db.close()

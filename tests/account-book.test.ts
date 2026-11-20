@@ -12,17 +12,17 @@ afterEach(() => fs.rmSync(base, { recursive: true, force: true }))
 it('agrupa por correo, ignora filas incompletas o de plataformas desconocidas y nunca lee contraseñas', () => {
   const f = path.join(base, 'cuentas.json')
   fs.writeFileSync(f, JSON.stringify({ actualizado: '2026-10-16', cuentas: [
-    { plataforma: 'tiktok', canal: '@democlipss', correo: 'juangadi13' },
-    { plataforma: 'YouTube', canal: '@Shortsdemo', correo: 'Juangadi13', contraseña: 'no-se-lee' },
-    { plataforma: 'youtube', canal: '@clipsparatodos', correo: 'bravira', nota: 'canal nuevo' },
+    { plataforma: 'tiktok', canal: '@democlipss', correo: 'cuenta1' },
+    { plataforma: 'YouTube', canal: '@Shortsdemo', correo: 'Cuenta1', contraseña: 'no-se-lee' },
+    { plataforma: 'youtube', canal: '@clipsparatodos', correo: 'cuenta2', nota: 'canal nuevo' },
     { plataforma: 'myspace', canal: 'x', correo: 'y' },
     { plataforma: 'youtube', correo: 'sin-canal' },
   ] }))
   const l = loadAccountBook(f)
   expect(l.error).toBeNull()
   expect(l.byEmail.map((g) => [g.email, g.entries.map((e) => `${e.platform}:${e.channel}`)])).toEqual([
-    ['juangadi13', ['tiktok:@democlipss', 'youtube:@Shortsdemo']],
-    ['bravira', ['youtube:@clipsparatodos']],
+    ['cuenta1', ['tiktok:@democlipss', 'youtube:@Shortsdemo']],
+    ['cuenta2', ['youtube:@clipsparatodos']],
   ])
   expect(JSON.stringify(l)).not.toContain('no-se-lee')
   expect(loadAccountBook(path.join(base, 'no.json'))).toMatchObject({ entries: [], error: null })

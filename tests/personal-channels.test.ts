@@ -219,7 +219,7 @@ describe('canal personal', () => {
     v9.exec(`INSERT INTO youtube_channels (channel_id, handle, uploads_playlist, added_at, subscribers) VALUES ('${CLIPS}', '@misclips', 'UU', 't', 40)`)
     v9.close()
     const nueva = openDatabase(ruta, { backupDir: path.join(base, 'copias') })
-    expect([SCHEMA_VERSION, nueva.pragma('user_version', { simple: true })]).toEqual([16, 16])
+    expect([SCHEMA_VERSION, nueva.pragma('user_version', { simple: true })]).toEqual([18, 18])
     expect(listChannels(nueva).map((c) => [c.handle, c.kind])).toEqual([['@misclips', 'clips']])
     expect(listChannels(nueva, 'personal')).toEqual([])
     expect(fs.readdirSync(path.join(base, 'copias'))[0]).toMatch(/^content-os_v9_.*\.db$/)

@@ -14,12 +14,16 @@ import type { VyroView } from './vyro'
 import type { SocialAccountView, SocialPlatform, SocialRefreshResult } from './social'
 import type { ChannelKind, ChannelSyncSummary, ChannelView } from './youtube-channels'
 import type { ExtraPlatform, ExtrasView } from './extras'
-import type { LongKind, LongLetter, LongVideosView } from './long-videos'
+import type { CityPlatform, LongKind, LongLetter, LongVideosView } from './long-videos'
 import type { WeekendPlan } from './weekend'
 import type { VideoControl } from './video-control'
 import type { AccountBook } from './account-book'
 import type { VyroPending } from './vyro-pending'
 import type { CalendarTaskInput, CalendarView } from './calendar'
+import type { OwnChannel, OwnChannelStats, OwnPlatform, OwnPostInput, OwnStatsInput } from './own-channels'
+import type { ImportItem, ImportResult, PickedVideo } from './own-import'
+import type { MetricoolQueueView } from './metricool-queue'
+import type { FabricaView } from './fabrica'
 import type { CampaignView, ClipDetail, ClipView, Counts, LibraryView, PublishedRow, SyncEventView, SyncRunView } from './queries'
 
 export const CHANNELS = {
@@ -94,6 +98,20 @@ export const CHANNELS = {
   addCalendarTask: 'cos:add-calendar-task',
   setCalendarTaskDone: 'cos:set-calendar-task-done',
   deleteCalendarTask: 'cos:delete-calendar-task',
+  getOwnStats: 'cos:get-own-stats',
+  getMetricoolQueue: 'cos:get-metricool-queue',
+  addOwnAccount: 'cos:add-own-account',
+  removeOwnAccount: 'cos:remove-own-account',
+  setOwnPost: 'cos:set-own-post',
+  addOwnStats: 'cos:add-own-stats',
+  pickVideos: 'cos:pick-videos',
+  listVideoFiles: 'cos:list-video-files',
+  importVideos: 'cos:import-videos',
+  pickBackground: 'cos:pick-background',
+  resetBackground: 'cos:reset-background',
+  getFabrica: 'cos:get-fabrica',
+  fabricaStart: 'cos:fabrica-start',
+  fabricaOpen: 'cos:fabrica-open',
   stateChanged: 'cos:state-changed',
   navigate: 'cos:navigate'
 } as const
@@ -122,6 +140,16 @@ export const longThumbUrl = (id: string, letter: LongLetter, kind: LongKind = 'l
   media(`${kind}-thumb`, `${encodeURIComponent(id)}/${letter}`, 'jpg')
 /** Miniatura de un vídeo de YouTube (la descarga y guarda el proceso principal): cos://ytthumb/<id>. */
 export const ytThumbUrl = (videoId: string) => media('ytthumb', encodeURIComponent(videoId), 'jpg')
+/** Imagen de revisión de la fábrica: cos://fabrica/<NN-tema>/<f00_4.jpg|hoja.jpg>. */
+export const fabricaImageUrl = (id: string, file: 'f00_4.jpg' | 'hoja.jpg') => {
+  const base = (globalThis as { __COS_MEDIA__?: string }).__COS_MEDIA__
+  return base ? `${base}fabrica/${encodeURIComponent(id)}/${file}` : `${MEDIA_SCHEME}://fabrica/${encodeURIComponent(id)}/${file}`
+}
+/** Fondo de pantalla elegido por el usuario: cos://fondo/<versión>. */
+export const backgroundUrl = (version: number) => {
+  const base = (globalThis as { __COS_MEDIA__?: string }).__COS_MEDIA__
+  return base ? `${base}fondo/${version}.jpg` : `${MEDIA_SCHEME}://fondo/${version}`
+}
 export const thumbUrl = (clipId: string, version?: number | null) =>
   media('thumb', encodeURIComponent(clipId), 'jpg', version ? `?v=${version}` : '')
 
@@ -160,6 +188,18 @@ export interface AppState {
   longPending: number
   /** Vídeos de música sin marcar como subidos. */
   musicPending: number
+  /** Vídeos de la ciudad que falta marcar como subidos en alguna red. */
+  cityPending: number
+  /** Historias Roblox sin marcar como subidas a YouTube. */
+  robloxPending: number
+  /** Curiosidades sin marcar como subidas. */
+  curioPending: number
+  /** Vídeos de la serie GTA 6 sin marcar como subidos. */
+  gtaPending: number
+  /** Vídeos de cada canal propio (para el menú). */
+  ownVideos: Record<OwnChannel, number>
+  /** Fondo propio elegido en Ajustes: su versión (cambia al cambiarlo); null = el fondo de serie. */
+  background: number | null
 }
 
 /** Resultado de pedir cifras: canales recorridos + publicaciones con URL puesta a mano. */
@@ -294,14 +334,41 @@ export interface ContentOsApi {
   trashExtras(groupId: string | null): Promise<ExtrasView>
   /** «Vídeos largos» (VIDEOS_LARGOS) o, con 'music', «Vídeos de música» (VIDEOS_MUSICA): 3 títulos y 3 miniaturas. Solo lectura. */
   listLongVideos(kind?: LongKind): Promise<LongVideosView>
-  /** Marca o desmarca un vídeo como subido a YouTube. */
-  setLongUploaded(id: string, uploaded: boolean, kind?: LongKind): Promise<LongVideosView>
+  /** Marca o desmarca un vídeo como subido a YouTube (en la ciudad, a la red que se diga). */
+  setLongUploaded(id: string, uploaded: boolean, kind?: LongKind, platform?: CityPlatform): Promise<LongVideosView>
   /** Abre el vídeo con el reproductor de Windows. */
   openLongVideo(id: string, kind?: LongKind): Promise<ActionResult>
   /** Abre en el Explorador la carpeta del vídeo (o la de todos, con null). */
   showLongInFolder(id: string | null, kind?: LongKind): Promise<ActionResult>
   /** Manda ya a la Papelera la carpeta de una campaña (clips y material). Solo lo llama el usuario desde su botón. */
   trashCampaign(campaignId: string): Promise<AppState>
+  /** Cola de Metricool de Curiosidades (fabrica/datos/cola_metricool.json), ordenada por fecha y con su resumen. Solo lectura. */
+  getMetricoolQueue(): Promise<MetricoolQueueView>
+  /** Estadísticas de un canal propio (GTA 6, Curiosidades, Roblox): cuentas, vídeos, evolución y mejor hora. */
+  getOwnStats(channel: OwnChannel): Promise<OwnChannelStats>
+  addOwnAccount(channel: OwnChannel, platform: OwnPlatform, account: string): Promise<OwnChannelStats>
+  removeOwnAccount(channel: OwnChannel, id: number): Promise<OwnChannelStats>
+  /** Marca o desmarca un vídeo como subido a una red (con su enlace, si se sabe). */
+  setOwnPost(input: OwnPostInput): Promise<OwnChannelStats>
+  /** Apunta a mano las cifras de un vídeo en una red (visitas, likes, comentarios, compartidos, retención). */
+  addOwnStats(input: OwnStatsInput): Promise<OwnChannelStats>
+  /** Abre el selector de Windows (archivos MP4 o una carpeta) y devuelve los vídeos elegidos. */
+  pickVideos(mode: 'files' | 'folder'): Promise<PickedVideo[]>
+  /** Vídeos MP4 de unas rutas (las de lo arrastrado a la ventana). */
+  listVideoFiles(paths: string[]): Promise<PickedVideo[]>
+  /** Mete los vídeos en la carpeta del canal (enlazados o copiados; el original no se toca). */
+  importVideos(channel: OwnChannel, items: ImportItem[]): Promise<ImportResult>
+  /** Ruta real de un archivo arrastrado a la ventana (la da Electron). */
+  pathForFile(file: File): string
+  /** Elige una imagen de fondo (se copia a los datos de la app). null si se cancela. */
+  pickBackground(): Promise<AppState | null>
+  resetBackground(): Promise<AppState>
+  /** Fábrica de Curiosidades: tandas, temas, notas del revisor y cola de subida (solo lectura). */
+  getFabrica(): Promise<FabricaView>
+  /** Abre una ventana con Claude Code haciendo una tanda de N vídeos (/fabrica N). */
+  fabricaStart(n: number): Promise<ActionResult>
+  /** Abre algo de la fábrica: la carpeta, el informe de una tanda, el vídeo o la hoja de fotogramas. */
+  fabricaOpen(what: 'folder' | 'report' | 'video' | 'sheet' | 'mejoras' | 'link', ref?: string): Promise<ActionResult>
   /** Avisa cuando algo cambia sin que lo pidas (p. ej. la comprobación periódica de Vyro). */
   onStateChanged(listener: (s: AppState) => void): () => void
   /** El proceso principal pide abrir un apartado (p. ej. al pulsar un aviso). */
@@ -340,6 +407,10 @@ export type { ChannelDashboard, ChannelDay, ChannelStudy, ChannelVideo, StudyFin
 export type { ChannelKind }
 export type { SocialAccountView, SocialPlatform, SocialRefreshResult, SocialVideoView } from './social'
 export type { ExtraGroup, ExtraPlatform, ExtraVideo, ExtrasView } from './extras'
-export type { LongKind, LongLetter, LongTitle, LongVideo, LongVideosView } from './long-videos'
+export type { CityPlatform, CityStats, LongKind, LongLetter, LongTitle, LongVideo, LongVideosView } from './long-videos'
 export type { WeekendAccount, WeekendPlan, WeekendSlot } from './weekend'
 export type { StatsAccount, StatsCampaign, StatsVideo, UnmatchedVideo, ClipOption } from './stats'
+export type { DataSource, Metric, OwnAccountView, OwnChannel, OwnChannelStats, OwnDay, OwnFollowers, OwnHourSlot, OwnPlatform, OwnPostInput, OwnPostStats, OwnStatsInput, OwnVideoStats } from './own-channels'
+export type { ImportItem, ImportResult, PickedVideo } from './own-import'
+export type { FabricaView }
+export type { MetricoolQueueItem, MetricoolQueueView } from './metricool-queue'

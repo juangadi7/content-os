@@ -3,6 +3,10 @@
  * cos://extra/<grupo>/<archivo>.mp4: vídeo de «Fuera de campaña», solo dentro de esa carpeta.
  * cos://long/<carpeta> y cos://long-thumb/<carpeta>/<A|B|C>: «Vídeos largos», solo dentro de su carpeta.
  * cos://music/<carpeta> y cos://music-thumb/<carpeta>/<A|B|C>: igual para «Vídeos de música».
+ * cos://roblox/<carpeta> y cos://roblox-thumb/<carpeta>/<A|B|C>: igual para «Historias Roblox».
+ * cos://curio/<carpeta> y cos://curio-thumb/<carpeta>/<A|B|C>: igual para «Curiosidades».
+ * cos://fondo/<versión>: el fondo de pantalla elegido en Ajustes.
+ * cos://fabrica/<NN-tema>/<f00_4.jpg|hoja.jpg>: fotogramas de la revisión de la fábrica de Curiosidades.
  * La interfaz pide por clip_id; la ruta real sale de la base de datos. No se puede pedir
  * ningún otro archivo del disco. Solo lectura, con soporte de saltos (Range) para el vídeo.
  */
@@ -14,6 +18,7 @@ import { MEDIA_SCHEME } from '../core/api'
 import type { DB } from '../core/db'
 import { resolveExtra, resolveExtraThumb } from '../core/extras'
 import { resolveLongThumb, resolveLongVideo } from '../core/long-videos'
+import { resolveFabricaImage } from '../core/fabrica'
 import { clipPaths } from '../core/queries'
 import { isChannelId } from '../core/youtube'
 
@@ -45,10 +50,21 @@ function servir(ruta: string, tipo: string, rango: string | null): Response {
   return new Response(cuerpo, { status: 200, headers: { ...base, 'Content-Length': String(total) } })
 }
 
-export function handleMedia(getDb: () => DB, avatarsDir: string, extrasDir: () => string, ytThumbsDir?: string, longDir?: () => string, musicDir?: () => string): void {
+export function handleMedia(getDb: () => DB, avatarsDir: string, extrasDir: () => string, ytThumbsDir?: string, longDir?: () => string, musicDir?: () => string, cityDir?: () => string, robloxDir?: () => string, curioDir?: () => string, gtaDir?: () => string, backgroundFile?: () => string | null, fabricaDir?: () => string): void {
   protocol.handle(MEDIA_SCHEME, async (req) => {
     try {
       const url = new URL(req.url)
+      if (url.hostname === 'fondo' && backgroundFile) {
+        // fondo de pantalla elegido en Ajustes (una copia guardada en los datos de la app)
+        const ruta = backgroundFile()
+        const tipo = ruta?.endsWith('.png') ? 'image/png' : ruta?.endsWith('.webp') ? 'image/webp' : 'image/jpeg'
+        return ruta ? servir(ruta, tipo, null) : new Response(null, { status: 404 })
+      }
+      if (url.hostname === 'fabrica' && fabricaDir) {
+        const [id, archivo] = url.pathname.replace(/^\//, '').split('/').map(decodeURIComponent)
+        const ruta = resolveFabricaImage(fabricaDir(), id, archivo)
+        return ruta ? servir(ruta, 'image/jpeg', null) : new Response(null, { status: 404 })
+      }
       if (url.hostname === 'ytthumb' && ytThumbsDir) {
         // miniatura de YouTube: se descarga una vez (solo de i.ytimg.com) y se sirve desde disco
         const id = decodeURIComponent(url.pathname.replace(/^\//, ''))
@@ -67,12 +83,12 @@ export function handleMedia(getDb: () => DB, avatarsDir: string, extrasDir: () =
         const tipo = ruta?.endsWith('.png') ? 'image/png' : ruta?.endsWith('.webp') ? 'image/webp' : 'image/jpeg'
         return ruta ? servir(ruta, tipo, null) : new Response(null, { status: 404 })
       }
-      const dirLargo = url.hostname.startsWith('music') ? musicDir : longDir
-      if ((url.hostname === 'long' || url.hostname === 'music') && dirLargo) {
+      const dirLargo = url.hostname.startsWith('music') ? musicDir : url.hostname.startsWith('city') ? cityDir : url.hostname.startsWith('roblox') ? robloxDir : url.hostname.startsWith('curio') ? curioDir : url.hostname.startsWith('gta') ? gtaDir : longDir
+      if ((url.hostname === 'long' || url.hostname === 'music' || url.hostname === 'city' || url.hostname === 'roblox' || url.hostname === 'curio' || url.hostname === 'gta') && dirLargo) {
         const ruta = resolveLongVideo(dirLargo(), decodeURIComponent(url.pathname.replace(/^\//, '')))
         return ruta ? servir(ruta, 'video/mp4', req.headers.get('range')) : new Response(null, { status: 404 })
       }
-      if ((url.hostname === 'long-thumb' || url.hostname === 'music-thumb') && dirLargo) {
+      if ((url.hostname === 'long-thumb' || url.hostname === 'music-thumb' || url.hostname === 'city-thumb' || url.hostname === 'roblox-thumb' || url.hostname === 'curio-thumb' || url.hostname === 'gta-thumb') && dirLargo) {
         const [id, letra] = url.pathname.replace(/^\//, '').split('/').map(decodeURIComponent)
         const ruta = resolveLongThumb(dirLargo(), id, letra)
         const tipo = ruta?.endsWith('.png') ? 'image/png' : ruta?.endsWith('.webp') ? 'image/webp' : 'image/jpeg'

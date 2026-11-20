@@ -1,7 +1,16 @@
+import { Bell, CalendarDays, House, Settings, Upload } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
-import type { AppState, SyncEventView, SyncSummary } from '../core/api'
+import { backgroundUrl, type AppState, type OwnChannel, type PickedVideo, type SyncEventView, type SyncSummary } from '../core/api'
 import type { ClipFilter } from '../core/format'
-import { Sidebar, type Section, type SyncStatus } from './components/Sidebar'
+import fondoDeSerie from './assets/fondo.jpg'
+import { ImportModal } from './components/ImportModal'
+import { CANALES, guardarVerVyro, leerVerVyro, Sidebar, type Section, type SyncStatus } from './components/Sidebar'
+import { HomeView } from './views/HomeView'
+import { MetricoolQueueView } from './views/MetricoolQueueView'
+import { FabricaView } from './views/FabricaView'
+import { OwnAccountsView } from './views/OwnAccountsView'
+import { OwnStatsView } from './views/OwnStatsView'
+import { SettingsView } from './views/SettingsView'
 import { YouTubeModal } from './components/YouTubeModal'
 import { AllClipsView } from './views/AllClipsView'
 import { CampaignsView } from './views/CampaignsView'
@@ -23,6 +32,10 @@ import { VideoControlView } from './views/VideoControlView'
 
 /** Una sola ventana: las pantallas se apilan y "volver" quita la de arriba. */
 type View =
+  | { name: 'home' }
+  | { name: 'settings' }
+  | { name: 'own-stats'; channel: OwnChannel }
+  | { name: 'own-accounts'; channel: OwnChannel }
   | { name: 'campaigns' }
   | { name: 'today' }
   | { name: 'weekend' }
@@ -38,11 +51,23 @@ type View =
   | { name: 'extras' }
   | { name: 'long' }
   | { name: 'music' }
+  | { name: 'city' }
+  | { name: 'roblox' }
+  | { name: 'curio' }
+  | { name: 'fabrica' }
+  | { name: 'metricool-queue' }
+  | { name: 'gta' }
   | { name: 'accounts' }
   | { name: 'control' }
   | { name: 'clip'; clipId: string }
 
 const RAIZ: Record<Section, View> = {
+  home: { name: 'home' },
+  settings: { name: 'settings' },
+  ...(Object.fromEntries(CANALES.flatMap((c) => [
+    [`${c.id}-stats`, { name: 'own-stats', channel: c.id }],
+    [`${c.id}-accounts`, { name: 'own-accounts', channel: c.id }]
+  ])) as Record<`${OwnChannel}-stats` | `${OwnChannel}-accounts`, View>),
   today: { name: 'today' },
   weekend: { name: 'weekend' },
   calendar: { name: 'calendar' },
@@ -57,6 +82,12 @@ const RAIZ: Record<Section, View> = {
   extras: { name: 'extras' },
   long: { name: 'long' },
   music: { name: 'music' },
+  city: { name: 'city' },
+  roblox: { name: 'roblox' },
+  curio: { name: 'curio' },
+  'curio-fabrica': { name: 'fabrica' },
+  'curio-queue': { name: 'metricool-queue' },
+  gta: { name: 'gta' },
   accounts: { name: 'accounts' },
   control: { name: 'control' }
 }
@@ -72,8 +103,17 @@ function resumen(s: SyncSummary): SyncStatus {
 export function App() {
   const [state, setState] = useState<AppState | null>(null)
   const [fatal, setFatal] = useState<string | null>(null)
-  const [stack, setStack] = useState<View[]>([RAIZ.campaigns])
-  const [section, setSection] = useState<Section>('campaigns')
+  const [stack, setStack] = useState<View[]>([RAIZ.home])
+  const [section, setSection] = useState<Section>('home')
+  /** «Añadir vídeos» abierto (con lo que se haya soltado en la ventana, si algo). */
+  const [importar, setImportar] = useState<{ initial: PickedVideo[] } | null>(null)
+  const [arrastrando, setArrastrando] = useState(false)
+  /** Vyro se enseña solo si se activa en Ajustes (16-nov-2026: Juan no lo usa ahora). */
+  const [verVyro, setVerVyro] = useState(leerVerVyro)
+  const cambiarVerVyro = (v: boolean) => {
+    guardarVerVyro(v)
+    setVerVyro(v)
+  }
   const [sync, setSync] = useState<SyncStatus>({ phase: 'idle', text: '', problems: 0 })
   const [refresh, setRefresh] = useState(0)
   const [problems, setProblems] = useState<SyncEventView[] | null>(null)
@@ -139,7 +179,7 @@ export function App() {
 
   // al pulsar un aviso de Windows se abre el apartado que corresponde
   useEffect(() => window.contentOS.onNavigate((s) => {
-    if (s === 'control' || s === 'today' || s === 'vyro') goSection(s)
+    if (s in RAIZ) goSection(s as Section)
   }), [])
 
   // cambios que llegan solos (comprobación periódica de Vyro)
@@ -212,6 +252,18 @@ export function App() {
     }
   }
   const verProblemas = async () => setProblems(await window.contentOS.listSyncProblems())
+  /** Canal propio de la pantalla actual (para proponerlo al añadir vídeos). */
+  const canalActual = CANALES.find((c) => section === c.id || section.startsWith(c.id + '-'))?.id
+  const avisos = verVyro ? state.vyroToSend + state.vyroNew + state.videosAlert : 0
+  // soltar vídeos en cualquier parte de la ventana abre «Añadir vídeos» con ellos
+  const conArchivos = (e: React.DragEvent) => Array.from(e.dataTransfer.types).includes('Files')
+  const soltarEnVentana = async (e: React.DragEvent) => {
+    if (!conArchivos(e) || importar) return
+    e.preventDefault()
+    setArrastrando(false)
+    const rutas = Array.from(e.dataTransfer.files).map((f) => window.contentOS.pathForFile(f)).filter(Boolean)
+    setImportar({ initial: await window.contentOS.listVideoFiles(rutas) })
+  }
   const abrirClip = (clipId: string) => push({ name: 'clip', clipId })
   const syncing = sync.phase === 'running'
   const anterior = stack[stack.length - 2]
@@ -221,10 +273,33 @@ export function App() {
       : anterior?.name === 'all' ? 'Todos los clips' : anterior?.name === 'pending' ? 'Pendientes' : anterior?.name === 'published' ? 'Publicados' : anterior?.name === 'stats' ? 'Estadísticas' : anterior?.name === 'channels' ? 'Canales' : anterior?.name === 'today' ? 'Hoy' : anterior?.name === 'vyro' ? 'Vyro' : 'Volver'
 
   return (
-    <div className="app">
-      <Sidebar state={state} section={section} sync={sync} onSection={goSection} onSync={sincronizar} onShowProblems={verProblemas} onYouTube={() => setYoutube(true)} />
+    <div className={`app ${arrastrando ? 'dragging' : ''}`} style={{ backgroundImage: `url("${state.background ? backgroundUrl(state.background) : fondoDeSerie}")` }}
+      onDragOver={(e) => { if (conArchivos(e) && !importar) { e.preventDefault(); setArrastrando(true) } }}
+      onDragLeave={(e) => { if (e.currentTarget === e.target) setArrastrando(false) }}
+      onDrop={(e) => void soltarEnVentana(e)}>
+      {/* franja de arriba para mover la ventana (la barra de Windows va integrada: ver titleBarOverlay en main) */}
+      <div className="dragbar" aria-hidden="true" />
+      <Sidebar state={state} section={section} sync={sync} onSection={goSection} onSync={sincronizar} onShowProblems={verProblemas} onYouTube={() => setYoutube(true)} showVyro={verVyro} />
       <main className="main" data-view={view.name}>
-        <div className="page" key={view.name === 'clip' ? view.clipId : view.name === 'campaign' ? view.campaignId : view.name}>
+        <div className="topbar">
+          <span className="sp" />
+          <nav className="pills-nav">
+            <button className={`pill glass ${section === 'home' ? 'on' : ''}`} data-test="top-home" onClick={() => goSection('home')}><House size={14} />Inicio</button>
+            <button className="pill glass" data-test="top-import" onClick={() => setImportar({ initial: [] })}><Upload size={14} />Añadir vídeos</button>
+            <button className={`pill glass ${section === 'calendar' ? 'on' : ''}`} data-test="top-calendar" onClick={() => goSection('calendar')}><CalendarDays size={14} />Calendario</button>
+            <button className={`pill glass ${section === 'settings' ? 'on' : ''}`} data-test="top-settings" onClick={() => goSection('settings')}><Settings size={14} />Ajustes</button>
+          </nav>
+          <span className="sp" />
+          <button className="round glass" data-test="top-bell" title={avisos ? `${state.vyroToSend} por enviar a Vyro · ${state.vyroNew} campañas nuevas · ${state.videosAlert} avisos de vídeos` : 'Sin avisos'} onClick={() => goSection(!avisos ? 'home' : state.vyroNew && !state.vyroToSend ? 'vyro' : state.videosAlert && !state.vyroToSend ? 'control' : 'today')}>
+            <Bell size={15} />{avisos > 0 && <span className="badge">{avisos}</span>}
+          </button>
+          <span className="round avatar" title="Juan">J</span>
+        </div>
+        <div className="page" key={view.name === 'clip' ? view.clipId : view.name === 'campaign' ? view.campaignId : view.name === 'own-stats' || view.name === 'own-accounts' ? `${view.name}:${view.channel}` : view.name}>
+        {view.name === 'home' && <HomeView state={state} refresh={refresh} showVyro={verVyro} onSection={goSection} onImport={() => setImportar({ initial: [] })} />}
+        {view.name === 'settings' && <SettingsView state={state} onState={setState} onYouTube={() => setYoutube(true)} onAccounts={() => goSection('accounts')} showVyro={verVyro} onShowVyro={cambiarVerVyro} />}
+        {view.name === 'own-stats' && <OwnStatsView channel={view.channel} refresh={refresh} />}
+        {view.name === 'own-accounts' && <OwnAccountsView channel={view.channel} refresh={refresh} youtubeConnected={state.youtubeConnected} onYouTube={() => setYoutube(true)} />}
         {view.name === 'campaigns' && (
           <CampaignsView
             state={state}
@@ -289,6 +364,12 @@ export function App() {
         {view.name === 'extras' && <ExtrasView refresh={refresh} onChanged={reload} />}
         {view.name === 'long' && <LongVideosView key="long" kind="long" refresh={refresh} onChanged={reload} />}
         {view.name === 'music' && <LongVideosView key="music" kind="music" refresh={refresh} onChanged={reload} />}
+        {view.name === 'city' && <LongVideosView key="city" kind="city" refresh={refresh} onChanged={reload} />}
+        {view.name === 'roblox' && <LongVideosView key="roblox" kind="roblox" refresh={refresh} onChanged={reload} onImport={() => setImportar({ initial: [] })} onStats={() => goSection('roblox-stats')} />}
+        {view.name === 'curio' && <LongVideosView key="curio" kind="curio" refresh={refresh} onChanged={reload} onImport={() => setImportar({ initial: [] })} onStats={() => goSection('curio-stats')} />}
+        {view.name === 'fabrica' && <FabricaView refresh={refresh} />}
+        {view.name === 'metricool-queue' && <MetricoolQueueView refresh={refresh} />}
+        {view.name === 'gta' && <LongVideosView key="gta" kind="gta" refresh={refresh} onChanged={reload} onImport={() => setImportar({ initial: [] })} onStats={() => goSection('gta-stats')} />}
         {view.name === 'accounts' && <AccountBookView refresh={refresh} />}
         {view.name === 'control' && (
           <VideoControlView refresh={refresh} onOpenClip={abrirClip} onChanged={reload} onVyro={() => goSection('vyro')}
@@ -301,6 +382,12 @@ export function App() {
         {view.name === 'clip' && <ClipDetailView clipId={view.clipId} refresh={refresh} backLabel={etiquetaVolver} onBack={back} onChanged={reload} />}
         </div>
       </main>
+
+      {importar && (
+        <ImportModal initial={importar.initial} channel={canalActual} onClose={() => setImportar(null)}
+          onImported={(c) => { void reload(); if (section !== c) goSection(c) }} />
+      )}
+      {arrastrando && <div className="dropveil"><Upload size={28} />Suelta los vídeos para añadirlos a un canal</div>}
 
       {youtube && <YouTubeModal state={state} onState={setState} onRefreshed={reload} onClose={() => setYoutube(false)} />}
 

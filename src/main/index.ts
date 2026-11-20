@@ -9,8 +9,13 @@ import { setCampaignStatus, setCampaignTerms, type CampaignStatusInput, type Cam
 import { loadConfig, saveConfig } from '../core/config'
 import { openDatabase, type DB } from '../core/db'
 import { EXTRAS_FOLDER, listExtras, resolveExtra, setExtraUploaded, trashExtras } from '../core/extras'
-import { LONG_FOLDER, MUSIC_FOLDER, asLongKind, listLongVideos, resolveLongFolder, resolveLongVideo, setLongUploaded } from '../core/long-videos'
+import { CITY_FOLDER, LONG_FOLDER, MUSIC_FOLDER, ROBLOX_FOLDER, CURIO_FOLDER, GTA_FOLDER, asLongKind, cityPending, listLongVideos, moveUploadMarks, resolveLongFolder, resolveLongVideo, setLongUploaded } from '../core/long-videos'
 import { purgeEndedCampaigns, trashCampaign } from '../core/purge'
+import { addOwnAccount, addOwnStats, adoptLegacyMarks, asOwnChannel, getOwnChannelStats, OWN_CHANNELS, removeOwnAccount, setOwnPost, youtubeManualRows, type OwnChannel } from '../core/own-channels'
+import { importOwnVideos, listVideoFiles, type ImportItem } from '../core/own-import'
+import { applyMetricoolQueue, metricoolQueueView, queueProblems, readMetricoolQueue, scheduledByFolder } from '../core/metricool-queue'
+import { esEnlaceViral, readFabrica, resolveFabricaImage, resolveFabricaMejoras, resolveFabricaRender, resolveFabricaReport } from '../core/fabrica'
+import { spawn } from 'node:child_process'
 import { getWeekendPlan } from '../core/weekend'
 import { getVideoControl, setControlIgnored } from '../core/video-control'
 import { loadAccountBook } from '../core/account-book'
@@ -125,7 +130,109 @@ function carpetaMusica(): string {
   const raiz = loadConfig(dirs.config, bibliotecasPorDefecto).config.library_roots[0]
   return raiz && !process.env.CONTENT_OS_SMOKE ? path.join(path.dirname(path.resolve(raiz)), MUSIC_FOLDER) : path.join(dirs.data, 'videos-musica')
 }
-const carpetaDeTipo = (kind: unknown) => (asLongKind(kind) === 'music' ? carpetaMusica() : carpetaLargos())
+/** «Vídeos de la ciudad»: al lado de «Vídeos largos» (en la prueba de humo, en sus datos temporales). */
+function carpetaCiudad(): string {
+  const raiz = loadConfig(dirs.config, bibliotecasPorDefecto).config.library_roots[0]
+  return raiz && !process.env.CONTENT_OS_SMOKE ? path.join(path.dirname(path.resolve(raiz)), CITY_FOLDER) : path.join(dirs.data, 'videos-ciudad')
+}
+/** «Historias Roblox»: al lado de «Vídeos largos» (en la prueba de humo, en sus datos temporales). */
+function carpetaRoblox(): string {
+  const raiz = loadConfig(dirs.config, bibliotecasPorDefecto).config.library_roots[0]
+  return raiz && !process.env.CONTENT_OS_SMOKE ? path.join(path.dirname(path.resolve(raiz)), ROBLOX_FOLDER) : path.join(dirs.data, 'videos-roblox')
+}
+/** «Curiosidades»: al lado de «Vídeos largos» (en la prueba de humo, en sus datos temporales). */
+function carpetaCurio(): string {
+  const raiz = loadConfig(dirs.config, bibliotecasPorDefecto).config.library_roots[0]
+  return raiz && !process.env.CONTENT_OS_SMOKE ? path.join(path.dirname(path.resolve(raiz)), CURIO_FOLDER) : path.join(dirs.data, 'videos-curiosidades')
+}
+/** «GTA 6»: al lado de «Vídeos largos» (en la prueba de humo, en sus datos temporales). */
+function carpetaGta(): string {
+  const raiz = loadConfig(dirs.config, bibliotecasPorDefecto).config.library_roots[0]
+  return raiz && !process.env.CONTENT_OS_SMOKE ? path.join(path.dirname(path.resolve(raiz)), GTA_FOLDER) : path.join(dirs.data, 'videos-gta6')
+}
+const carpetaDeTipo = (kind: unknown) => {
+  const k = asLongKind(kind)
+  return k === 'music' ? carpetaMusica() : k === 'city' ? carpetaCiudad() : k === 'roblox' ? carpetaRoblox() : k === 'curio' ? carpetaCurio() : k === 'gta' ? carpetaGta() : carpetaLargos()
+}
+
+/** Fábrica de Curiosidades: Desktop/Cosas IA/Canal curiosidades (en la prueba de humo, una carpeta de prueba). */
+function carpetaFabrica(): string {
+  if (process.env.CONTENT_OS_FABRICA) return process.env.CONTENT_OS_FABRICA
+  return process.env.CONTENT_OS_SMOKE ? path.join(dirs.data, 'fabrica-prueba') : path.join(app.getPath('desktop'), 'Cosas IA', 'Canal curiosidades')
+}
+
+/**
+ * Vídeos de un apartado. En Curiosidades se aplica antes la cola de Metricool que deja la fábrica
+ * (fabrica/datos/cola_metricool.json): lo publicado cuenta como subido (source 'metricool'), lo programado lleva su
+ * fecha y sale de «por subir», y sus problemas se enseñan como aviso.
+ */
+function listarVideos(kind: unknown) {
+  const k = asLongKind(kind)
+  if (k !== 'curio') return listLongVideos(db, carpetaDeTipo(k), k)
+  const cola = readMetricoolQueue(path.join(datosFabrica(), 'cola_metricool.json'))
+  if (!cola) return listLongVideos(db, carpetaCurio(), 'curio')
+  try {
+    applyMetricoolQueue(db, cola, new Set(listLongVideos(db, carpetaCurio(), 'curio').videos.map((v) => v.id)))
+  } catch {
+    /* la cola es una ayuda: si no se puede aplicar, se enseña la carpeta tal cual */
+  }
+  const vista = listLongVideos(db, carpetaCurio(), 'curio')
+  const programados = scheduledByFolder(cola)
+  return {
+    ...vista,
+    videos: vista.videos.map((v) => ({ ...v, scheduledAt: v.uploadedAt ? null : programados.get(v.id) ?? null })),
+    alerts: queueProblems(cola),
+    queueUpdatedAt: cola?.updatedAt ?? null
+  }
+}
+
+/** Carpeta de cada canal propio. */
+const carpetaPropia = (c: OwnChannel) => (c === 'gta' ? carpetaGta() : c === 'curio' ? carpetaCurio() : carpetaRoblox())
+
+/** Estadísticas de un canal propio, con sus vídeos leídos de su carpeta. */
+function statsPropias(channel: unknown) {
+  const c = asOwnChannel(channel)
+  if (!c) throw new Error('Canal no válido.')
+  const videos = listarVideos(c).videos.map((v) => ({ id: v.id, title: v.titles[0]?.text ?? v.id, description: v.description }))
+  return getOwnChannelStats(db, c, videos, socialConnections())
+}
+
+/**
+ * Datos de YouTube Studio apuntados a mano en Curiosidades → archivo que lee la fábrica del canal
+ * (Canal curiosidades/fabrica/datos/youtube_manual.json; la clave es el id del vídeo de YouTube).
+ * Se escribe al guardar cifras y al abrir la app. Nunca en la prueba de humo.
+ */
+const datosFabrica = () => path.join(carpetaFabrica(), 'fabrica', 'datos')
+function exportarYouTubeManual(): void {
+  if (process.env.CONTENT_OS_SMOKE) return
+  const FABRICA_YOUTUBE_MANUAL = path.join(datosFabrica(), 'youtube_manual.json')
+  try {
+    const dir = path.dirname(FABRICA_YOUTUBE_MANUAL)
+    if (!fs.existsSync(path.dirname(dir))) return // sin carpeta de la fábrica: nada que exportar
+    const titulos = new Map(listLongVideos(db, carpetaCurio(), 'curio').videos.map((v) => [v.id, v.titles[0]?.text ?? v.id]))
+    const filas = youtubeManualRows(db, 'curio', titulos)
+    fs.mkdirSync(dir, { recursive: true })
+    const tmp = FABRICA_YOUTUBE_MANUAL + '.tmp'
+    fs.writeFileSync(tmp, JSON.stringify(filas, null, 2) + '\n', 'utf8')
+    fs.renameSync(tmp, FABRICA_YOUTUBE_MANUAL)
+  } catch {
+    /* la exportación es una ayuda: si falla, se reintenta al guardar otra vez */
+  }
+}
+
+/** Fondo de pantalla propio (Ajustes): fondo.<ext> en los datos de la app. */
+const EXT_FONDO = ['.jpg', '.jpeg', '.png', '.webp']
+function archivoFondo(): string | null {
+  for (const e of EXT_FONDO) {
+    const r = path.join(dirs.data, 'fondo' + e)
+    if (fs.existsSync(r)) return r
+  }
+  return null
+}
+function versionFondo(): number | null {
+  const r = archivoFondo()
+  return r ? Math.round(fs.statSync(r).mtimeMs) : null
+}
 
 function estado(): AppState {
   const cfg = loadConfig(dirs.config, bibliotecasPorDefecto)
@@ -151,7 +258,14 @@ function estado(): AppState {
     vyroToSend: listVyroPending(db).length,
     extrasCount: listExtras(db, carpetaExtras()).total,
     longPending: listLongVideos(db, carpetaLargos()).videos.filter((v) => !v.uploadedAt).length,
-    musicPending: listLongVideos(db, carpetaMusica(), 'music').videos.filter((v) => !v.uploadedAt).length
+    musicPending: listLongVideos(db, carpetaMusica(), 'music').videos.filter((v) => !v.uploadedAt).length,
+    cityPending: listLongVideos(db, carpetaCiudad(), 'city').videos.filter(cityPending).length,
+    robloxPending: listLongVideos(db, carpetaRoblox(), 'roblox').videos.filter((v) => !v.uploadedAt).length,
+    // lo programado en Metricool ya no está «por subir» (norma de Juan, 17-nov)
+    curioPending: listarVideos('curio').videos.filter((v) => !v.uploadedAt && !v.scheduledAt).length,
+    gtaPending: listLongVideos(db, carpetaGta(), 'gta').videos.filter((v) => !v.uploadedAt).length,
+    ownVideos: Object.fromEntries(OWN_CHANNELS.map((c) => [c, listLongVideos(db, carpetaPropia(c), c).total])) as AppState['ownVideos'],
+    background: versionFondo()
   }
 }
 
@@ -640,10 +754,10 @@ function registrarIpc(): void {
     })
   )
   // ---- «Vídeos largos» y «Vídeos de música»: leer la carpeta, abrir y marcar como subido (los vídeos no se tocan)
-  ipcMain.handle(CHANNELS.listLongVideos, (_e, kind: unknown) => listLongVideos(db, carpetaDeTipo(kind), asLongKind(kind)))
-  ipcMain.handle(CHANNELS.setLongUploaded, (_e, id: unknown, uploaded: unknown, kind: unknown) => {
-    setLongUploaded(db, carpetaDeTipo(kind), id, uploaded === true, new Date(), asLongKind(kind))
-    return listLongVideos(db, carpetaDeTipo(kind), asLongKind(kind))
+  ipcMain.handle(CHANNELS.listLongVideos, (_e, kind: unknown) => listarVideos(kind))
+  ipcMain.handle(CHANNELS.setLongUploaded, (_e, id: unknown, uploaded: unknown, kind: unknown, platform: unknown) => {
+    setLongUploaded(db, carpetaDeTipo(kind), id, uploaded === true, new Date(), asLongKind(kind), platform)
+    return listarVideos(kind)
   })
   ipcMain.handle(CHANNELS.openLongVideo, (_e, id: unknown, kind: unknown) =>
     accion(async () => {
@@ -662,6 +776,98 @@ function registrarIpc(): void {
       if (error) throw new Error(error)
     })
   )
+  // ---- canales propios: cuentas, subidas por red, cifras a mano y «Añadir vídeos»
+  ipcMain.handle(CHANNELS.getOwnStats, (_e, channel: unknown) => statsPropias(channel))
+  ipcMain.handle(CHANNELS.getMetricoolQueue, () => metricoolQueueView(readMetricoolQueue(path.join(datosFabrica(), 'cola_metricool.json'))))
+  ipcMain.handle(CHANNELS.addOwnAccount, async (_e, channel: unknown, platform: unknown, account: unknown) => {
+    const a = addOwnAccount(db, channel, platform, account)
+    // un canal de YouTube se sigue como «personal» para que sus vídeos y cifras lleguen solos
+    const clave = getSecret(dirs.config, YOUTUBE_KEY)
+    if (a.platform === 'youtube' && clave) {
+      try {
+        await addChannel(db, a.account, clave, pedir, undefined, 'personal')
+        await syncChannels(db, clave, pedir, { force: true })
+      } catch {
+        /* la cuenta queda apuntada; sus cifras, a mano hasta que YouTube la encuentre */
+      }
+    }
+    return statsPropias(a.channel)
+  })
+  ipcMain.handle(CHANNELS.removeOwnAccount, (_e, channel: unknown, id: unknown) => {
+    removeOwnAccount(db, id)
+    return statsPropias(channel)
+  })
+  ipcMain.handle(CHANNELS.setOwnPost, (_e, input: any) => {
+    setOwnPost(db, input ?? {})
+    return statsPropias(input?.channel)
+  })
+  ipcMain.handle(CHANNELS.addOwnStats, (_e, input: any) => {
+    addOwnStats(db, input ?? {})
+    if (input?.channel === 'curio') exportarYouTubeManual()
+    return statsPropias(input?.channel)
+  })
+  ipcMain.handle(CHANNELS.pickVideos, async (_e, mode: unknown) => {
+    const win = ventanaPrincipal()
+    const r = mode === 'folder'
+      ? await dialog.showOpenDialog(win!, { title: 'Elegir una carpeta con vídeos', properties: ['openDirectory'] })
+      : await dialog.showOpenDialog(win!, { title: 'Elegir vídeos', properties: ['openFile', 'multiSelections'], filters: [{ name: 'Vídeos MP4', extensions: ['mp4'] }] })
+    return r.canceled ? [] : listVideoFiles(r.filePaths)
+  })
+  ipcMain.handle(CHANNELS.listVideoFiles, (_e, paths: unknown) => listVideoFiles(Array.isArray(paths) ? paths.filter((p): p is string => typeof p === 'string') : []))
+  ipcMain.handle(CHANNELS.importVideos, (_e, channel: unknown, items: unknown) => {
+    const c = asOwnChannel(channel)
+    if (!c) throw new Error('Elige un canal.')
+    const r = importOwnVideos(carpetaPropia(c), c, (Array.isArray(items) ? items : []) as ImportItem[])
+    ventanaPrincipal()?.webContents.send(CHANNELS.stateChanged, estado())
+    return r
+  })
+  ipcMain.handle(CHANNELS.pickBackground, async () => {
+    const r = await dialog.showOpenDialog(ventanaPrincipal()!, { title: 'Elegir imagen de fondo', properties: ['openFile'], filters: [{ name: 'Imágenes', extensions: ['jpg', 'jpeg', 'png', 'webp'] }] })
+    if (r.canceled || !r.filePaths[0]) return null
+    const ext = path.extname(r.filePaths[0]).toLowerCase()
+    if (!EXT_FONDO.includes(ext)) throw new Error('Elige una imagen JPG, PNG o WEBP.')
+    for (const e of EXT_FONDO) fs.rmSync(path.join(dirs.data, 'fondo' + e), { force: true })
+    fs.copyFileSync(r.filePaths[0], path.join(dirs.data, 'fondo' + ext))
+    return estado()
+  })
+  // ---- «Fábrica» de Curiosidades: leer tandas y notas; «Hacer tanda» abre Claude Code en otra ventana
+  ipcMain.handle(CHANNELS.getFabrica, () => readFabrica(carpetaFabrica()))
+  ipcMain.handle(CHANNELS.fabricaStart, (_e, n: unknown) =>
+    accion(() => {
+      const cuantos = typeof n === 'number' && Number.isInteger(n) && n >= 1 && n <= 10 ? n : 3
+      const bat = path.join(carpetaFabrica(), 'Hacer tanda.bat')
+      if (!fs.existsSync(bat)) throw new Error('No encuentro «Hacer tanda.bat» en la carpeta del canal de curiosidades.')
+      if (process.env.CONTENT_OS_SMOKE) return
+      // ventana nueva de Windows con Claude Code haciendo /fabrica N (la app no espera: el panel se va actualizando solo)
+      spawn('cmd.exe', ['/c', `start "Fabrica de videos" "${bat}" ${cuantos}`], {
+        cwd: carpetaFabrica(), detached: true, stdio: 'ignore', windowsVerbatimArguments: true
+      }).unref()
+    })
+  )
+  ipcMain.handle(CHANNELS.fabricaOpen, (_e, what: unknown, ref: unknown) =>
+    accion(async () => {
+      const c = carpetaFabrica()
+      if (what === 'link') {
+        if (!esEnlaceViral(ref)) throw new Error('Enlace no válido.')
+        if (!process.env.CONTENT_OS_SMOKE) await shell.openExternal(ref)
+        return
+      }
+      const ruta = what === 'folder' ? c
+        : what === 'mejoras' ? resolveFabricaMejoras(c, ref)
+        : what === 'report' ? resolveFabricaReport(c, ref)
+          : what === 'video' ? resolveFabricaRender(c, ref)
+            : what === 'sheet' ? resolveFabricaImage(c, ref, 'hoja.jpg')
+              : null
+      if (!ruta || !fs.existsSync(ruta)) throw new Error('No se encuentra.')
+      if (process.env.CONTENT_OS_SMOKE) return
+      const error = await shell.openPath(ruta)
+      if (error) throw new Error(error)
+    })
+  )
+  ipcMain.handle(CHANNELS.resetBackground, () => {
+    for (const e of EXT_FONDO) fs.rmSync(path.join(dirs.data, 'fondo' + e), { force: true })
+    return estado()
+  })
   ipcMain.handle(CHANNELS.getWeekendPlan, () => planFinde(db))
   ipcMain.handle(CHANNELS.getVyroPending, () => listVyroPending(db))
   ipcMain.handle(CHANNELS.setVyroSent, (_e, id: unknown, sent: unknown) => {
@@ -729,6 +935,10 @@ function crearVentana(): BrowserWindow {
     backgroundColor: '#131316',
     show: false,
     autoHideMenuBar: true,
+    // barra de título integrada (16-nov-2026, pedido de Juan): sin la franja blanca de Windows; los botones de
+    // minimizar/maximizar/cerrar de Windows quedan encima del fondo, arriba a la derecha (transparentes, iconos claros)
+    titleBarStyle: 'hidden',
+    titleBarOverlay: { color: '#00000000', symbolColor: '#f2f1ee', height: 40 },
     webPreferences: {
       preload: path.join(__dirname, '../preload/index.js'),
       contextIsolation: true,
@@ -744,6 +954,8 @@ function crearVentana(): BrowserWindow {
     return { action: 'deny' }
   })
   win.webContents.on('will-navigate', (e) => e.preventDefault())
+  // solo para revisar pantallas en modo aparte: CONTENT_OS_START=<apartado> abre la app en ese apartado
+  if (process.env.CONTENT_OS_START) win.webContents.once('did-finish-load', () => setTimeout(() => !win.isDestroyed() && win.webContents.send(CHANNELS.navigate, process.env.CONTENT_OS_START), 2500))
 
   if (process.env.ELECTRON_RENDERER_URL) void win.loadURL(process.env.ELECTRON_RENDERER_URL)
   else void win.loadFile(path.join(__dirname, '../renderer/index.html'))
@@ -764,7 +976,12 @@ if (!app.requestSingleInstanceLock()) {
     app.setAppUserModelId('local.contentos.app') // para que Windows enseñe las notificaciones con el nombre de la aplicación
     for (const d of Object.values(dirs)) fs.mkdirSync(d, { recursive: true })
     db = openDatabase(dbPath, { backupDir: dirs.backups })
-    handleMedia(() => db, dirs.avatars, carpetaExtras, path.join(dirs.data, 'ytthumbs'), carpetaLargos, carpetaMusica)
+    // 15-nov-2026: los vídeos de GTA 6 (32–37) pasaron de «Curiosidades» a «GTA 6»; sus marcas de subido van con ellos
+    try { moveUploadMarks(db, carpetaGta(), 'curio', 'gta') } catch { /* sin carpeta o sin marcas: nada que mover */ }
+    // 16-nov-2026: las marcas «subido a YouTube» de los canales propios pasan a las subidas por red
+    for (const c of OWN_CHANNELS) try { adoptLegacyMarks(db, c) } catch { /* se reintenta al abrir otra vez */ }
+    exportarYouTubeManual()
+    handleMedia(() => db, dirs.avatars, carpetaExtras, path.join(dirs.data, 'ytthumbs'), carpetaLargos, carpetaMusica, carpetaCiudad, carpetaRoblox, carpetaCurio, carpetaGta, archivoFondo, carpetaFabrica)
     registrarIpc()
     const win = crearVentana()
     principal = win

@@ -275,7 +275,7 @@ describe('panel del canal', () => {
     `)
     v8.close()
     const nueva = openDatabase(ruta, { backupDir: path.join(base, 'copias') })
-    expect([SCHEMA_VERSION, nueva.pragma('user_version', { simple: true })]).toEqual([16, 16])
+    expect([SCHEMA_VERSION, nueva.pragma('user_version', { simple: true })]).toEqual([18, 18])
     expect(nueva.prepare('SELECT video_id, views FROM youtube_video_snapshots ORDER BY video_id, measured_at').all()).toEqual([
       { video_id: A, views: 100 }, { video_id: A, views: 500 }, { video_id: B, views: 40 }
     ])

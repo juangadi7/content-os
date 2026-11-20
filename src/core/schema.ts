@@ -448,6 +448,50 @@ CREATE INDEX idx_social_snap_video ON social_video_snapshots(platform, video_id,
   /* 16 */ `
 -- propio: cuándo dejó de aparecer el vídeo en su cuenta (lo borraste o lo hiciste privado). NULL = sigue publicado.
 ALTER TABLE social_videos ADD COLUMN removed_at TEXT;
+`,
+  /* 17 */ `
+-- propio (16-nov-2026): canales propios (GTA 6, Curiosidades, Historias Roblox).
+-- Cuentas de cada canal en cada red (las apunta el usuario en la app).
+CREATE TABLE own_accounts (
+  id          INTEGER PRIMARY KEY,
+  channel     TEXT NOT NULL,                         -- gta | curio | roblox
+  platform    TEXT NOT NULL CHECK (platform IN ('tiktok','youtube','instagram')),
+  account     TEXT NOT NULL COLLATE NOCASE,          -- @nombre
+  created_at  TEXT NOT NULL,
+  UNIQUE (channel, platform, account)
+);
+-- Dónde se ha subido cada vídeo: una fila por vídeo y red, con la cuenta y quién lo apuntó.
+CREATE TABLE own_posts (
+  id          INTEGER PRIMARY KEY,
+  channel     TEXT NOT NULL,
+  video       TEXT NOT NULL,                         -- carpeta del vídeo (VIDEOS_GTA6/<carpeta>, etc.)
+  platform    TEXT NOT NULL CHECK (platform IN ('tiktok','youtube','instagram')),
+  account     TEXT NOT NULL DEFAULT '' COLLATE NOCASE,
+  url         TEXT,
+  ext_id      TEXT,                                  -- id del vídeo en la red (para leer sus cifras de la API)
+  posted_at   TEXT,
+  source      TEXT NOT NULL DEFAULT 'manual',        -- manual | api | metricool: de dónde sale la subida
+  created_at  TEXT NOT NULL,
+  UNIQUE (channel, video, platform)
+);
+-- Cifras apuntadas a mano (o que traiga Metricool): la retención solo llega así de momento.
+CREATE TABLE own_post_stats (
+  id           INTEGER PRIMARY KEY,
+  post_id      INTEGER NOT NULL REFERENCES own_posts(id) ON DELETE CASCADE,
+  measured_at  TEXT NOT NULL,
+  views        INTEGER,
+  likes        INTEGER,
+  comments     INTEGER,
+  shares       INTEGER,
+  retention    REAL,                                 -- % medio visto (0-100)
+  origin       TEXT NOT NULL DEFAULT 'manual'
+);
+CREATE INDEX idx_own_post_stats ON own_post_stats(post_id, measured_at);
+`,
+  /* 18 */ `
+-- propio (17-nov-2026, para la fábrica de Curiosidades): datos de YouTube Studio que no da ninguna API, apuntados a mano.
+ALTER TABLE own_post_stats ADD COLUMN viewed_pct REAL;     -- «Vieron vs. deslizaron»: % que se quedó a verlo (0-100)
+ALTER TABLE own_post_stats ADD COLUMN avg_view_s REAL;     -- duración media vista, en segundos
 `
 ]
 

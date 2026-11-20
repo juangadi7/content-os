@@ -6,11 +6,11 @@ App de escritorio para **automatizar la gestión de una operación de clips cort
 
 Hecha con IA aplicada (Claude Code) como herramienta de trabajo diaria.
 
-**Stack:** Electron · React 19 · TypeScript · SQLite (better-sqlite3) · Vite · Vitest (~290 tests)
+**Stack:** Electron · React 19 · TypeScript · SQLite (better-sqlite3) · Vite · three.js · Vitest (~310 tests)
 
-**▶ Demo en vivo:** https://juangadi7.github.io/content-os/ — la interfaz real con un canal de ejemplo y 60 días de estadísticas inventadas.
+**▶ Demo en vivo:** https://juangadi7.github.io/content-os/ — la interfaz real con canales de ejemplo y estadísticas inventadas.
 
-![Estadísticas](screenshots/2-estadisticas.jpg)
+![Inicio](screenshots/1-inicio.jpg)
 
 > Este repositorio es una copia pública del código: los nombres de canales y los identificadores reales se han sustituido por valores de ejemplo y no incluye datos, capturas ni credenciales. Las claves de las APIs se guardan cifradas en local en tiempo de ejecución (`src/main/secrets.ts`), nunca en el código.
 
@@ -21,14 +21,19 @@ Hecha con IA aplicada (Claude Code) como herramienta de trabajo diaria.
 - **Publicaciones y estadísticas**: guarda cada subida y mide visualizaciones (YouTube Data API, TikTok, Instagram Graph API), con series temporales y gráficas.
 - **Campañas y dinero**: estado de las campañas de Vyro, envíos pendientes, pedidos y libro de cuentas.
 - **Limpieza de material en bruto**: calcula lo que ocupan los vídeos fuente y libera espacio de forma segura.
+- **Inicio**: resumen de todos los canales (visitas, likes, retención media) por semana, mes o año, con exportación.
+- **Canales propios**: cada canal tiene sus vídeos, sus cuentas en cada red y sus estadísticas (evolución de visitas, mejor hora para subir, comparación entre vídeos). Los vídeos se importan arrastrándolos y las cifras se apuntan a mano o se sincronizan.
+- **Fábrica de vídeos**: panel de un equipo de agentes de Claude que busca temas, escribe el guion, pone voz, anima y revisa cada Short; solo pasa lo que saca buena nota. Incluye una sala en 3D (three.js) que muestra en qué está cada agente.
+- **Cola de Metricool**: lee la cola de publicaciones programadas, la cruza con los vídeos de la biblioteca y marca lo publicado.
+- **Interfaz de cristal**: barra lateral por canal y fondo de pantalla configurable en Ajustes.
 
 ## Capturas
 
-| Estudio del canal | Vídeos largos |
+| Fábrica de vídeos | Estadísticas de un canal |
 |---|---|
-| ![Estudio del canal](screenshots/3b-estudio.jpg) | ![Vídeos largos](screenshots/4-largos.jpg) |
-| **Campañas** | **Ficha de un clip** |
-| ![Campañas](screenshots/1-campanas.jpg) | ![Clip](screenshots/7-clip.jpg) |
+| ![Fábrica](screenshots/2-fabrica.jpg) | ![Estadísticas](screenshots/3-estadisticas.jpg) |
+| **Cola de Metricool** | **Cuentas del canal** |
+| ![Metricool](screenshots/4-metricool.jpg) | ![Cuentas](screenshots/5-cuentas.jpg) |
 
 ## Demo web
 

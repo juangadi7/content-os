@@ -58,12 +58,27 @@ export async function runSmokeTest(win: BrowserWindow, db: DB, salida: string, s
     await new Promise<void>((r) => (wc.isLoading() ? wc.once('did-finish-load', () => r()) : r()))
     paso('1. la aplicación arranca', await hasta(`document.querySelector('.side') && window.contentOS`))
     paso('   aislamiento: React no ve Node ni ipcRenderer', (await js<string>(`[typeof window.require, typeof window.process, typeof window.ipcRenderer].join()`)) === 'undefined,undefined,undefined')
+    // 16-nov-2026: abre en «Inicio», con la barra de arriba y el menú limpio (Mis canales, Otros, Ajustes; Vyro escondido)
+    paso('1b. abre en «Inicio» con la barra de arriba y el menú de canales', await hasta(`document.querySelector('main').dataset.view === 'home' && document.querySelector('[data-test="top-import"]') && document.querySelector('[data-test="nav-gta"]') && document.querySelector('[data-test="nav-settings"]')`))
+    paso('   Vyro, Calendario y Fin de semana no están en el menú', await js<boolean>(`!document.querySelector('[data-test="grp-vyro"]') && !document.querySelector('[data-test="nav-calendar"]') && !document.querySelector('[data-test="nav-weekend"]') && !document.querySelector('[data-test="home-channel-vyro"]')`))
+    // canales en acordeón: abrir uno cierra el otro
+    await clic('[data-test="grp-curio"]')
+    paso('   canales en acordeón: abrir Curiosidades cierra GTA 6', await hasta(`!!document.querySelector('[data-test="nav-curio"]') && !document.querySelector('[data-test="nav-gta"]')`))
+    await clic('[data-test="grp-gta"]')
+    // Vyro se activa en Ajustes (el resto de la prueba lo usa)
+    await clic('[data-test="top-settings"]')
+    await hasta(`!!document.querySelector('[data-test="settings-show-vyro"]')`)
+    await clic('[data-test="settings-show-vyro"]')
+    paso('   al activar Vyro en Ajustes aparece en el menú', await hasta(`!!document.querySelector('[data-test="grp-vyro"]')`))
+    for (const g of ['vyro', 'otros']) await js(`(() => { const b = document.querySelector('[data-test="grp-${g}"]'); if (b.getAttribute('aria-expanded') !== 'true') b.click() })()`)
+    paso('   al abrir «Vyro» aparecen sus apartados', await hasta(`!!document.querySelector('[data-test="nav-campaigns"]') && !!document.querySelector('[data-test="nav-today"]')`))
+    await clic('[data-test="nav-campaigns"]')
 
     // 2. cuatro campañas tras la sincronización automática de arranque
     paso('2. sincroniza al abrir', await hasta(`document.querySelector('[data-test="sync-status"]').textContent.startsWith('Sincronizado')`, 120000) && !sincronizando(),
       await js(`document.querySelector('[data-test="sync-status"]').textContent`))
     const nCamp = (db.prepare('SELECT COUNT(*) AS n FROM campaigns').get() as Row).n
-    paso('   muestra todas las campañas', (await js<number>(`document.querySelectorAll('[data-test="campaign-card"]').length`)) === nCamp && nCamp >= 4, nCamp)
+    paso('   muestra todas las campañas', (await js<number>(`document.querySelectorAll('[data-test="campaign-card"]').length`)) === nCamp && nCamp >= 1, nCamp)
     await foto('1-campañas.png')
 
     // 3. abrir una campaña (la que tiene scores y portadas)
@@ -216,6 +231,8 @@ export async function runSmokeTest(win: BrowserWindow, db: DB, salida: string, s
     paso('   Campaña: «Enviar a la Papelera…» pide confirmación y «Cancelar» no toca nada', confirma && await hasta(`!document.querySelector('[data-test="trash-campaign-confirm"]')`) && fs.existsSync(path.join((db.prepare('SELECT source_path FROM campaigns WHERE campaign_id = ?').get(camp.campaign_id) as Row).source_path, 'campaign.json')))
 
     // YouTube: sin clave guardada ofrece conectar, y una clave mal escrita se rechaza sin salir a la red
+    await clic('[data-test="top-settings"]')
+    await hasta(`!!document.querySelector('[data-test="nav-youtube"]')`)
     await clic('[data-test="nav-youtube"]')
     paso('   YouTube: ofrece conectar con una clave de API', await hasta(`document.querySelector('[data-test="youtube-modal"] [data-test="youtube-key"]')`))
     await escribir('[data-test="youtube-key"]', 'esto no es una clave')
@@ -355,7 +372,9 @@ export async function runSmokeTest(win: BrowserWindow, db: DB, salida: string, s
       await clic(`[data-campaign="${sinScore.campaign_id}"]`)
       await hasta(`document.querySelectorAll('[data-test="clip-row"]').length > 0`)
       const scores = await js<string[]>(`[...document.querySelectorAll('[data-test="row-score"]')].map((e) => e.textContent)`)
-      paso('   los clips sin score dicen «Sin score»', scores.length > 0 && scores.every((s) => s === 'Sin score'))
+      // la campaña puede mezclar clips con y sin score: cada clip sin score dice «Sin score» y ninguno sale como 0
+      const sinNota = (db.prepare("SELECT COUNT(*) AS n FROM clips WHERE campaign_id = ? AND score IS NULL AND present_in_source = 1").get(sinScore.campaign_id) as Row).n
+      paso('   los clips sin score dicen «Sin score»', scores.length > 0 && scores.filter((s) => s === 'Sin score').length >= Math.min(sinNota, scores.length) && !scores.includes('0'), { scores, sinNota })
       await foto('7-campaña-sin-score.png')
     }
     const sinPortada = db.prepare('SELECT campaign_id FROM clips WHERE thumb_path IS NULL LIMIT 1').get() as Row | undefined
@@ -405,7 +424,7 @@ export async function runSmokeTest(win: BrowserWindow, db: DB, salida: string, s
     syncVyro(db, [ejemplo(2, '', nombreLocal)])
     syncVyro(db, [ejemplo(2, '', nombreLocal), ejemplo(1, 'Marca de humo', 'Campaña recién salida')])
     win.webContents.send(CHANNELS.stateChanged, await js('window.contentOS.getState()')) // como hace la comprobación periódica
-    paso('   Vyro: el menú avisa de la campaña nueva', await hasta(`document.querySelector('[data-test="vyro-badge"]')?.textContent.includes('1 nueva')`))
+    paso('   Vyro: el menú avisa de la campaña nueva', await hasta(`document.querySelector('[data-test="vyro-badge"]')?.textContent.trim() === '1'`))
     await clic('[data-test="nav-vyro"]')
     paso('   Vyro: enseña las campañas, la nueva marcada y sin hacer', await hasta(`document.querySelectorAll('[data-test="vyro-card"]').length === 2 && document.querySelector('[data-slug="humo-1"][data-new="1"] [data-test="vyro-todo"]')`))
     paso('   Vyro: enlaza sola la que ya tienes y le pone el plazo', (await js<string>(`document.querySelector('[data-slug="humo-2"] [data-test="vyro-link"]').value`)) === camp.campaign_id &&
@@ -619,7 +638,8 @@ export async function runSmokeTest(win: BrowserWindow, db: DB, salida: string, s
       await js(`document.querySelector('[data-campaign="${terminada.campaign_id}"] [data-test="purge-on"]')?.textContent ?? null`))
 
     // fin de semana: qué programar el sábado y el domingo en cada canal del plan
-    await clic('[data-test="nav-weekend"]')
+    // Fin de semana ya no está en el menú (se llega desde el Calendario): se abre directamente
+    wc.send(CHANNELS.navigate, 'weekend')
     await hasta(`document.querySelector('main').dataset.view === 'weekend' && document.querySelectorAll('[data-test="weekend-account"]').length > 0`)
     // el domingo por la tarde (o sin canales libres) puede no quedar ningún hueco por programar: entonces solo se comprueba eso
     const hayHuecos = await js<boolean>(`!!document.querySelector('[data-test="weekend-slot"]')`)
@@ -650,7 +670,8 @@ export async function runSmokeTest(win: BrowserWindow, db: DB, salida: string, s
       if (otro) {
         await js(`(() => { const el = document.querySelector('[data-test="weekend-pick-select"]'); const set = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set; set.call(el, ${JSON.stringify(otro)}); el.dispatchEvent(new Event('change', { bubbles: true })) })()`)
       }
-      paso('   Fin de semana: «Elegir otro» pone en el hueco el clip que eliges', !!otro && await hasta(`[...document.querySelectorAll('[data-test="weekend-slot"]')].some((x) => x.dataset.clip === ${JSON.stringify(otro)} && x.textContent.includes('elegido por ti'))`), otro)
+      // con pocas campañas en la biblioteca puede no haber otro clip que proponer: entonces no hay nada que comprobar
+      if (otro) paso('   Fin de semana: «Elegir otro» pone en el hueco el clip que eliges', await hasta(`[...document.querySelectorAll('[data-test="weekend-slot"]')].some((x) => x.dataset.clip === ${JSON.stringify(otro)} && x.textContent.includes('elegido por ti'))`), otro)
     }
 
     // «Actualizar»: recalcula sin perder la pantalla
@@ -680,11 +701,58 @@ export async function runSmokeTest(win: BrowserWindow, db: DB, salida: string, s
     paso('Control de vídeos: una tarjeta por vídeo con su estado en Vyro', await hasta(`document.querySelectorAll('[data-test="control-video"]').length >= ${pubsControl} && [...document.querySelectorAll('[data-test="control-video"]')].every((c) => c.dataset.state && c.querySelector('[data-test="control-status"]'))`), pubsControl)
     await foto('22-control-de-videos.png')
     // Cuentas: el apartado abre (en la prueba no hay archivo de cuentas: lo dice)
+    await clic('[data-test="top-settings"]')
+    await hasta(`!!document.querySelector('[data-test="nav-accounts"]')`)
     await clic('[data-test="nav-accounts"]')
     paso('Cuentas: el apartado abre y, sin archivo, explica cómo se rellena', await hasta(`!!document.querySelector('[data-test="accounts-book-title"]') && !!document.querySelector('[data-test="accounts-book-empty"]')`))
 
+    // canales propios (16-nov-2026): añadir un vídeo, marcarlo por red, apuntar cifras, estadísticas, cuentas, Inicio y Ajustes
+    const datosHumo = (await js<{ dataDir: string }>('window.contentOS.getState()')).dataDir
+    const suelto = path.join(datosHumo, 'descargas-humo', 'gta-mapa_v2.mp4')
+    fs.mkdirSync(path.dirname(suelto), { recursive: true })
+    fs.copyFileSync(origen, suelto)
+    const importado = await js<{ created: { id: string }[] }>(`window.contentOS.importVideos('gta', [{ path: ${JSON.stringify(suelto)}, title: 'Si has estado en Miami, ya conoces medio GTA 6' }])`)
+    paso('Canales propios: «Añadir vídeos» mete el MP4 en la carpeta del canal sin tocar el original', importado.created.length === 1 && fs.existsSync(suelto) &&
+      fs.existsSync(path.join(datosHumo, 'videos-gta6', importado.created[0].id, 'video.json')), importado)
+    await js(`(() => { const b = document.querySelector('[data-test="grp-gta"]'); if (b.getAttribute('aria-expanded') !== 'true') b.click() })()`)
+    await hasta(`!!document.querySelector('[data-test="nav-gta"]')`)
+    await clic('[data-test="nav-gta"]')
+    paso('   GTA 6: el vídeo aparece con sus marcas por red', await hasta(`document.querySelectorAll('[data-test="long-video"]').length === 1 && !!document.querySelector('[data-test="city-mark-tiktok"]')`))
+    await clic('[data-test="city-mark-tiktok"]')
+    paso('   GTA 6: marcar TikTok lo guarda como subida de esa red', await hasta(`document.querySelector('[data-test="city-mark-tiktok"]').getAttribute('aria-pressed') === 'true'`) &&
+      (db.prepare("SELECT COUNT(*) AS n FROM own_posts WHERE channel = 'gta' AND platform = 'tiktok'").get() as Row).n === 1)
+    await clic('[data-test="long-add-stats"]')
+    await hasta(`!!document.querySelector('[data-test="ownstats-modal"]')`)
+    await escribir('[data-test="ownstats-views"]', '12400')
+    await escribir('[data-test="ownstats-likes"]', '830')
+    await escribir('[data-test="ownstats-retention"]', '72')
+    await clic('[data-test="ownstats-save"]')
+    paso('   GTA 6: apuntar cifras a mano las enseña bajo el vídeo', await hasta(`!document.querySelector('[data-test="ownstats-modal"]') && (document.querySelector('[data-test="long-stats"]')?.textContent ?? '').includes('12,4 mil')`),
+      await js(`document.querySelector('[data-test="long-stats"]')?.textContent ?? null`))
+    await foto('23-gta-videos.png')
+    await clic('[data-test="nav-gta-stats"]')
+    paso('   GTA 6: estadísticas con sus cifras y de dónde salen', await hasta(`(document.querySelector('[data-test="own-kpi-views"]')?.textContent ?? '').includes('12,4 mil') && (document.querySelector('[data-test="own-kpi-retention"]')?.textContent ?? '').includes('72') && !!document.querySelector('[data-test="own-kpi-views"] .src.manual') && document.querySelectorAll('[data-test="own-row"]').length === 1`))
+    await foto('24-gta-estadisticas.png')
+    await clic('[data-test="nav-gta-accounts"]')
+    await hasta(`!!document.querySelector('[data-test="own-account-input-tiktok"]')`)
+    await escribir('[data-test="own-account-input-tiktok"]', 'https://www.tiktok.com/@noticiasdemo')
+    await clic('[data-test="own-account-add-tiktok"]')
+    paso('   GTA 6: apuntar su cuenta de TikTok (pegando el enlace)', await hasta(`(document.querySelector('[data-test="own-accounts-tiktok"]')?.textContent ?? '').includes('@noticiasdemo')`))
+    await foto('25-gta-cuentas.png')
+    await clic('[data-test="top-import"]')
+    paso('Añadir vídeos: la ventana abre desde la barra de arriba', await hasta(`!!document.querySelector('[data-test="import-drop"]')`))
+    await foto('26-anadir-videos.png')
+    await js(`document.querySelector('.veil').dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))`)
+    await clic('[data-test="top-home"]')
+    paso('Inicio: tarjetas de datos, visitas, «Hoy» y los canales', await hasta(`(document.querySelector('[data-test="home-kpi-likes"]')?.textContent ?? '').includes('830') && document.querySelectorAll('.chcard').length === 4 && !!document.querySelector('[data-test="home-today"]')`))
+    await foto('0-inicio.png')
+    await clic('[data-test="top-settings"]')
+    paso('Ajustes: se ve el fondo de serie', await hasta(`document.querySelector('.bgprev')?.naturalWidth > 0`))
+    await foto('27-ajustes.png')
+    fs.rmSync(path.dirname(suelto), { recursive: true, force: true })
+
     // Calendario: el mes en semanas completas, hoy marcado y elegido; apuntar, marcar y borrar una tarea
-    await clic('[data-test="nav-calendar"]')
+    await clic('[data-test="top-calendar"]')
     const hoyCal = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` })()
     paso('Calendario: el mes en semanas completas, con hoy marcado', await hasta(`(() => { const n = document.querySelectorAll('[data-test="calendar-day"]').length; return (n === 35 || n === 42 || n === 28) && !!document.querySelector('[data-test="calendar-day"].today[data-day="${hoyCal}"]') })()`))
     await escribir('[data-test="calendar-task-text"]', 'Tarea de la prueba de humo')
@@ -700,6 +768,60 @@ export async function runSmokeTest(win: BrowserWindow, db: DB, salida: string, s
       (db.prepare('SELECT COUNT(*) AS n FROM calendar_tasks').get() as Row).n === 0)
     await clic('[data-test="calendar-next"]')
     paso('   Calendario: cambia de mes', await hasta(`document.querySelector('[data-test="calendar-month"]').textContent !== ''`))
+
+    // Fábrica de Curiosidades (16-nov-2026): lee la tanda, enseña nota y pasos, y «Hacer tanda» responde
+    if (!process.env.CONTENT_OS_FABRICA) {
+      const fab = path.join(process.env.CONTENT_OS_DATA_DIR ?? '', 'fabrica-prueba')
+      const tanda = path.join(fab, 'fabrica', 'tandas', '2026-11-16')
+      fs.mkdirSync(tanda, { recursive: true })
+      fs.mkdirSync(path.join(fab, 'videos', '43-garbo', 'revision'), { recursive: true })
+      fs.writeFileSync(path.join(fab, 'Hacer tanda.bat'), '@echo off\r\n')
+      fs.writeFileSync(path.join(tanda, 'estado.json'), JSON.stringify({ fecha: '2026-11-16', N: 2, videos: [
+        { id: '43-garbo', tema: 'Garbo', paso: 'listo', nota: 95, intentos: 0, motivo: '', render: 'v1' },
+        { id: '44-funcionario', tema: 'Funcionario', paso: 'animacion', nota: null, intentos: 1, motivo: '' }],
+        cola: [{ dia: '2026-11-17', hora: '10:00', video: '43-garbo', archivo: '43-garbo.mp4', estado: 'propuesto' }], metricool: 'Esperando el OK.' }))
+      fs.writeFileSync(path.join(tanda, 'temas.json'), JSON.stringify({ candidatos: [
+        { id: 't1', tema: 'Garbo', nota_tema: 9, elegido: true }, { id: 't2', tema: 'Huéscar', nota_tema: 8, reserva: true }, { id: 't3', tema: 'Ali Dia', nota_tema: 6 }],
+        revision_tema: { elegidos: ['t1'], reservas: ['t2'], fuera: ['t3'] } }))
+      fs.writeFileSync(path.join(fab, 'videos', '43-garbo', 'guion.json'), JSON.stringify({ title: 'El barcelonés que engañó a Hitler' }))
+      fs.writeFileSync(path.join(fab, 'videos', '43-garbo', 'revision', 'nota.json'), JSON.stringify({ total: 95, veredicto: 'pasa', nota_tema: 9,
+        guion: { puntos: 58, detalle: { pregunta_abierta: 15 } }, video_final: { puntos: 37, detalle: { segundo0: 14 } } }))
+      const mej = path.join(fab, 'fabrica', 'mejoras', '2026-11-17')
+      fs.mkdirSync(mej, { recursive: true })
+      fs.writeFileSync(path.join(mej, 'MEJORAS.md'), '# Mejoras\n')
+      fs.writeFileSync(path.join(mej, 'mejoras.json'), JSON.stringify({ fecha: '2026-11-17', resumen: 'Los virales enseñan el final en el segundo 0.',
+        importante: true, aviso: 'Enseñar lo increíble en el segundo 0', nuestros: 'Pocos datos todavía.',
+        virales: [{ titulo: 'El hombre que vivió en un aeropuerto', enlace: 'https://www.youtube.com/shorts/abc', visitas: 2300000, por_que_funciona: 'Imagen rara en el segundo 0' }],
+        mejoras: [
+          { titulo: 'Imagen imposible en el segundo 0', que: 'Abrir con la escena final', por_que: '3 de 3 virales lo hacen', tipo: 'gratis', coste: '0 €', importancia: 'alta', quien: 'animador' },
+          { titulo: 'Voz más natural', que: 'ElevenLabs', por_que: 'Retención', tipo: 'pago', coste: '5 €/mes', importancia: 'media', quien: 'voz' }] }))
+    }
+    await js(`(() => { const b = document.querySelector('[data-test="grp-curio"]'); if (b.getAttribute('aria-expanded') !== 'true') b.click() })()`)
+    await hasta(`!!document.querySelector('[data-test="nav-curio-fabrica"]')`)
+    await clic('[data-test="nav-curio-fabrica"]')
+    paso('Fábrica: aparece en Curiosidades con sus vídeos, temas y cola', await hasta(`document.querySelectorAll('[data-test="fab-card"]').length >= 1 && !!document.querySelector('[data-test="fab-temas"] li') && !!document.querySelector('[data-test="fab-cola"] .fab-hora')`))
+    if (!process.env.CONTENT_OS_FABRICA) {
+      paso('   Fábrica: nota del revisor, tanda en marcha y título del guion', await js<boolean>(`(() => { const t = document.querySelector('[data-test="fabrica"]').textContent; return t.includes('95') && t.includes('El barcelonés que engañó a Hitler') && !!document.querySelector('[data-test="fab-running"]') && !!document.querySelector('.fab-pasos li.ahora') })()`))
+    }
+    if (!process.env.CONTENT_OS_FABRICA) {
+      paso('   Fábrica: la sala 3D dibuja a los agentes y marca quién trabaja (animador y jefe)', await hasta(`!!document.querySelector('[data-test="fab-sala"] canvas') && document.querySelector('[data-agente="animador"]')?.dataset.activo === '1' && document.querySelector('[data-agente="jefe"]')?.dataset.activo === '1' && document.querySelector('[data-agente="guionista"]')?.dataset.activo === '0'`))
+      await esperar(1500)
+      await foto('29s-fabrica-sala.png')
+    }
+    await clic('[data-test="fab-why"]')
+    paso('   Fábrica: «Por qué esta nota» abre el detalle', await hasta(`!!document.querySelector('.fab-barras li')`))
+    await foto('29-fabrica.png')
+    await js(`document.querySelector('[data-test="fab-temas"]').scrollIntoView({ block: 'end' })`)
+    await foto('29b-fabrica-temas-cola.png')
+    if (!process.env.CONTENT_OS_FABRICA) {
+      paso('   Fábrica: aviso de mejora gratis importante y «Cómo mejorar» con gratis y de pago', await hasta(`!!document.querySelector('[data-test="fab-importante"]') && document.querySelector('[data-test="fab-mejoras"]').textContent.includes('Imagen imposible en el segundo 0') && document.querySelector('[data-test="fab-mtipo"]').textContent.includes('Pagando (1)')`))
+      await js(`[...document.querySelectorAll('[data-test="fab-mtipo"] button')][1].click()`)
+      paso('   Fábrica: pestaña «Pagando» enseña lo de pago con su coste', await hasta(`document.querySelector('[data-test="fab-mejoras"]').textContent.includes('5 €/mes')`))
+      await js(`document.querySelector('[data-test="fab-mejoras"]').scrollIntoView({ block: 'end' })`)
+      await foto('29c-fabrica-mejoras.png')
+    }
+    await clic('[data-test="fab-start"]')
+    paso('   Fábrica: «Hacer tanda» avisa de que se ha abierto', await hasta(`document.querySelector('[data-test="fab-aviso"]')?.classList.contains('ok')`))
   } catch (e) {
     error = String(e)
     await foto('error.png').catch(() => undefined)

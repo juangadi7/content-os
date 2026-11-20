@@ -17,6 +17,8 @@ import './styles/today.css'
 import './styles/calendar.css'
 import './styles/accounts.css'
 import './styles/control.css'
+import './styles/fabrica.css'
+import './styles/glass.css'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

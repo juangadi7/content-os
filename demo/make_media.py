@@ -28,6 +28,9 @@ PALETTES = {
     'ciencia': ((20, 60, 140), (32, 178, 170), '🔬'),
     'emprende': ((120, 50, 10), (230, 150, 40), '💼'),
     'cocina': ((140, 25, 45), (240, 100, 80), '🍳'),
+    'gta': ((90, 20, 110), (240, 90, 140), ''),
+    'curio': ((15, 70, 90), (60, 170, 120), ''),
+    'roblox': ((30, 40, 120), (230, 70, 60), ''),
 }
 
 
@@ -70,7 +73,7 @@ def cover(title, campaign, w=360, h=640):
         y = y0 + i * lh
         d.rectangle((w * 0.06, y - 4, w * 0.06 + d.textlength(line, font=f) + 16, y + lh - 8), fill=(0, 0, 0, 120))
         d.text((w * 0.06 + 8, y), line, font=f, fill=(255, 255, 255))
-    tag = {'ciencia': 'CIENCIA', 'emprende': 'PODCAST', 'cocina': 'COCINA'}[campaign]
+    tag = {'ciencia': 'CIENCIA', 'emprende': 'PODCAST', 'cocina': 'COCINA', 'gta': 'GTA 6', 'curio': 'CURIOSIDADES', 'roblox': 'HISTORIAS'}[campaign]
     ft = font(int(w * 0.05))
     d.rounded_rectangle((w * 0.06, h * 0.08, w * 0.06 + d.textlength(tag, font=ft) + 28, h * 0.08 + w * 0.09), radius=8, fill=(255, 255, 255, 235))
     d.text((w * 0.06 + 14, h * 0.08 + w * 0.018), tag, font=ft, fill=a)
@@ -168,6 +171,24 @@ def main(manifest, out):
             slide('Plan de la semana', ['2 vídeos largos programados', '5 shorts reaprovechados', 'Revisión el próximo lunes'], n=4),
         ]
         video_from_images(slides, os.path.join(out, 'long', enc + '.mp4'), seconds=4)
+    # canales propios: portada vertical (miniatura A) y un MP4 corto de cada vídeo
+    for kind, vids in m.get('own', {}).items():
+        for v in vids:
+            os.makedirs(os.path.join(out, kind + '-thumb', v['id']), exist_ok=True)
+            os.makedirs(os.path.join(out, kind), exist_ok=True)
+            img = cover(v['title'], kind)
+            img.save(os.path.join(out, kind + '-thumb', v['id'], 'A.jpg'), quality=86)
+            video_from_images([img], os.path.join(out, kind, v['id'] + '.mp4'), seconds=3)
+    # fábrica: fotograma del segundo 0 y hoja de revisión de cada vídeo
+    for v in m.get('fabrica', []):
+        d = os.path.join(out, 'fabrica', v['id'])
+        os.makedirs(d, exist_ok=True)
+        img = cover(v['title'], 'curio')
+        img.save(os.path.join(d, 'f00_4.jpg'), quality=86)
+        hoja = Image.new('RGB', (720, 640), (12, 16, 20))
+        for i in range(4):
+            hoja.paste(img.resize((180, 320)), (i * 180, 0 if i % 2 == 0 else 320))
+        hoja.save(os.path.join(d, 'hoja.jpg'), quality=82)
 
 
 if __name__ == '__main__':
